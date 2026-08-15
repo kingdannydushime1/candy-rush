@@ -39,8 +39,15 @@
 
   game.start();
 
-  // Test harness hook (only active when tools/selftest.js is loaded)
-  if (window.__SELFTEST_RUN) {
+  // Test harness hooks (only active when tools/*.js are loaded)
+  if (window.__SHOWCASE_RUN) {
+    try {
+      await window.__SHOWCASE_RUN(game, new URLSearchParams(location.search).get('shot') || 'map');
+    } catch (err) {
+      console.error('SHOWCASE crashed:', err);
+      document.title = 'SHOWCASE-FAIL';
+    }
+  } else if (window.__SELFTEST_RUN) {
     try {
       await window.__SELFTEST_RUN(game);
     } catch (err) {

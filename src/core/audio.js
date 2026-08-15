@@ -27,35 +27,40 @@ class AudioEngine {
     this.musicWanted = !!path;
     this.musicTrack = path || null;
     if (!path || !this.settings.sound || this.platformMuted) {
-      this._pauseMusicEl();
+      this._stopMusicEl();
       return;
     }
-    if (this.musicEl && this.musicEl.src.indexOf(path) !== -1) {
+    if (this.musicEl && this.musicEl.dataset.track === path) {
       // already on this track : just make sure it plays
       this._resumeMusicEl();
       return;
     }
-    this._pauseMusicEl();
+    // fully tear down the previous element BEFORE creating the new one,
+    // so a late canplaythrough from the old track can never play on top
+    // of the new one (this used to make menu + world music overlap)
+    this._stopMusicEl();
     try {
       const audio = new Audio();
       audio.src = path;
+      audio.dataset.track = path;
       audio.loop = true;
-      audio.volume = 0.32;
+      audio.volume = 0.2;
       audio.preload = 'auto';
       audio.playbackRate = this.musicBaseRate;
+      this.musicEl = audio;
       const start = () => {
+        if (this.musicEl !== audio || !this.musicWanted) return;
         audio.play().catch(() => { /* autoplay blocked until gesture */ });
         audio.removeEventListener('canplaythrough', start);
       };
       audio.addEventListener('canplaythrough', start);
-      this.musicEl = audio;
     } catch (e) { /* noop */ }
   }
 
   stopMusic() {
     this.musicWanted = false;
     this.musicTrack = null;
-    this._pauseMusicEl();
+    this._stopMusicEl();
   }
 
   setMusicRate(rate) {
@@ -63,10 +68,22 @@ class AudioEngine {
     if (this.musicEl) this.musicEl.playbackRate = rate;
   }
 
+  /* Pause but keep the element (used by the sound toggle / platform) */
   _pauseMusicEl() {
     if (this.musicEl) {
       try { this.musicEl.pause(); } catch (e) { /* noop */ }
     }
+  }
+
+  /* Full teardown : pause, drop the source and abort any pending load */
+  _stopMusicEl() {
+    if (!this.musicEl) return;
+    try {
+      this.musicEl.pause();
+      this.musicEl.removeAttribute('src');
+      this.musicEl.load();
+    } catch (e) { /* noop */ }
+    this.musicEl = null;
   }
 
   _resumeMusicEl() {

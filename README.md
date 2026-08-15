@@ -17,6 +17,7 @@ Built in **100% vanilla JavaScript** (no framework, no build step) on a custom e
 - Chain combos → **FEVER mode** at ×5 (double points, glow, music speeds up)
 - Complete each level's objective (**SCORE / CANDIES / SURVIVE**) to win stars and unlock the next one
 - **150 levels · 10 worlds** (Sugar Meadow → Ice Cream Factory → Chocolate Forest → Bubblegum Sky → Lollipop Land → Candy Castle → Gummy Ocean → Marshmallow Mountains → Caramel Desert → Golden Gala), each with its own pastel theme and **CC0 background music**
+- **World map** : the 10 worlds sit on a winding journey path (pastel nodes, stars, lock state). Tap a world to open its 15 levels — the **15th level is the golden BOSS node** (👑)
 - On game over: **REVIVE** (watch an ad — or a free instant revive on the web demo — to come back exactly where you died) or **RETRY**
 - On victory: **NEXT** level or **BONUS** (watch an ad to double your earned coins)
 - Claim the **daily reward** from the menu every day

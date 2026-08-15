@@ -107,6 +107,8 @@ window.__SELFTEST_RUN = async function run(game) {
   check('quit: state idle', s.state === 'idle', 'state=' + s.state);
   // after quit the MENU music plays — the world music must NOT keep playing
   check('quit: world music stopped (menu music ok)', game.audio.musicTrack === 'assets/music/menu.ogg', 'track=' + game.audio.musicTrack);
+  // exactly ONE music element must exist : no old track left behind
+  check('quit: single music element (no overlap)', !game.audio.musicEl || game.audio.musicEl.dataset.track === 'assets/music/menu.ogg', 'track=' + (game.audio.musicEl ? game.audio.musicEl.dataset.track : 'none'));
   // the world must not advance anymore
   const gateY = s.gates.length ? s.gates[0].y : 0;
   for (let i = 0; i < 20; i += 1) s.update(0.05);
@@ -139,7 +141,7 @@ window.__SELFTEST_RUN = async function run(game) {
   check('controls: 6 buttons total', s.el.querySelectorAll('.ctl-btn').length === 6);
   check('controls: inside viewport', Array.from(s.el.querySelectorAll('.ctl-btn')).every((b) => inside(b.getBoundingClientRect(), vp)));
 
-  // ---------- FIX 2 : LEVELS home button ----------
+  // ---------- FIX 2 : WORLD MAP (levels button = map now) ----------
   game.show('levels');
   await settle();
   const levels = game.screens.current;
@@ -150,32 +152,47 @@ window.__SELFTEST_RUN = async function run(game) {
   const head = levels.el.querySelector('.levels-head');
   const headR = head.getBoundingClientRect();
   check('levels: head inside viewport', inside(headR, vp));
-  // home does not cover the title
   const title = levels.el.querySelector('.levels-head .modal-title');
   check('levels: home does not overlap title', !title || !homeBtn || !(title.getBoundingClientRect().right > hr.left && hr.left < title.getBoundingClientRect().right), '');
+  // WORLD MAP : 10 world nodes on a path
+  const nodes = levels.el.querySelectorAll('.world-node');
+  check('map: 10 world nodes', nodes.length === 10, 'n=' + nodes.length);
+  check('map: nodes inside viewport (scrollable area)', Array.from(nodes).every((n) => inside(n.getBoundingClientRect(), vp)) || levels.el.querySelector('.world-map-scroll').scrollHeight >= levels.el.querySelector('.world-map-scroll').clientHeight, '');
+  // tap world 1 (unlocked) → world view with 15 levels
+  const firstNode = Array.from(nodes).find((n) => !n.classList.contains('locked'));
+  firstNode.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  await settle();
+  const levelBtns = levels.el.querySelectorAll('.level-btn');
+  check('map: world opens 15 levels', levelBtns.length === 15, 'n=' + levelBtns.length);
+  const bossBtn = levels.el.querySelector('.level-btn.boss');
+  check('map: level 15 is the BOSS node', !!bossBtn && bossBtn.querySelector('.level-btn-num').textContent === '15', '');
+  // back to map
+  levels.el.querySelector('.levels-head .btn-back').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  await settle();
+  check('map: back returns to the world map', levels.el.querySelectorAll('.world-node').length === 10, '');
 
-  // ---------- FIX 3 : SHOP items inside the panel ----------
+  // ---------- FIX 3 : SHOP items inside the new parent (no f.png asset) ----------
   game.show('shop');
   await settle();
   const shop = game.screens.current;
-  const panel = shop.el.querySelector('.panel');
+  const panel = shop.el.querySelector('.shop-panel');
+  // the new parent must NOT use the f.png panel image as its background
+  const panelBg = panel ? (getComputedStyle(panel).backgroundImage || '') : '';
+  check('shop: new parent container exists (no f.png asset)', !!panel && panelBg.indexOf('f.png') === -1, 'bg=' + panelBg.slice(0, 60));
   const panelRect = panel.getBoundingClientRect();
   check('shop: panel inside viewport', inside(panelRect, vp));
   const items = Array.from(shop.el.querySelectorAll('.shop-item, .video-card'));
   check('shop: items exist', items.length > 4, 'n=' + items.length);
-  // Horizontal overflow is the real bug (items spilling out of the panel
-  // image). Vertical overflow below the visible rect is FINE : the panel
-  // scrolls, so the tail of the list is reached by scrolling.
+  // the parent owns the scroll : nothing spills out of it
   const hOverflow = items.filter((el) => {
     const r = el.getBoundingClientRect();
     return r.right > panelRect.right + 2 || r.left < panelRect.left - 2;
   });
-  check('shop: no item overflows the panel horizontally', hOverflow.length === 0, 'hOverflow=' + hOverflow.length);
-  // the panel scrolls when the content is taller than the viewport
+  check('shop: no item overflows the new parent horizontally', hOverflow.length === 0, 'hOverflow=' + hOverflow.length);
   const scrollable = panel.scrollHeight >= panel.clientHeight - 2;
   const lastItemBottom = Math.max(...items.map((el) => el.getBoundingClientRect().bottom));
   const coversAll = panel.scrollHeight >= lastItemBottom - panelRect.top - 2;
-  check('shop: panel scrolls and covers the whole list', scrollable && coversAll, 'scrollH=' + panel.scrollHeight + ' clientH=' + panel.clientHeight + ' last=' + Math.round(lastItemBottom - panelRect.top));
+  check('shop: parent scrolls and covers the whole list', scrollable && coversAll, 'scrollH=' + panel.scrollHeight + ' clientH=' + panel.clientHeight + ' last=' + Math.round(lastItemBottom - panelRect.top));
 
   // ---------- FINAL ----------
   check('zero console errors', T.errors.length === 0, T.errors.join(' | ').slice(0, 300));

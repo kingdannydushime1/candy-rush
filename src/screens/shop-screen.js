@@ -19,15 +19,22 @@ class ShopScreen extends BaseScreen {
     this.el.className = 'screen shop-screen';
     this.el.appendChild(BG.build('menu'));
 
-    const panel = new Panel({ image: 'assets/ui/f.png' });
+    // No panel image asset here : a plain translucent card contains the
+    // items, so nothing ever spills out of it (the old f.png frame used
+    // to be too small for the list and the items overflowed it).
+    const panel = document.createElement('div');
+    panel.className = 'shop-panel';
+    const content = document.createElement('div');
+    content.className = 'panel-content';
     const children = [this.titleEl(LANG.t('shop.title')), this.coinsEl()];
     if (items.length) children.push(this.sectionLabel(LANG.t('shop.title')), this.itemsEl(items));
     if (videoItems.length) {
       children.push(this.sectionLabel(LANG.t('shop.videoSection')), this.videoItemsEl(videoItems));
     }
     children.push(this.backButton());
-    panel.add(...children);
-    this.el.appendChild(panel.el);
+    children.forEach((child) => content.appendChild(child.el || child));
+    panel.appendChild(content);
+    this.el.appendChild(panel);
 
     this.toast = document.createElement('div');
     this.toast.className = 'shop-toast';
