@@ -12,8 +12,8 @@
 
   const game = new Game(GAME_CONFIG);
 
-  // Load saved progress (coins, best score, shop, settings)
-  await game.storage.load(['coins', 'best', 'owned', 'settings']);
+  // Load saved progress (coins, best score, shop, settings, levels, cosmetics)
+  await game.storage.load(['coins', 'best', 'owned', 'settings', 'progress', 'equipped', 'daily']);
 
   // Platform audio state (check initial value + subscribe)
   game.audio.setPlatformEnabled(Bridge.platform.isAudioEnabled);
@@ -31,7 +31,9 @@
   game
     .register(new LoadingScreen(game))
     .register(new MenuScreen(game))
+    .register(new LevelSelectScreen(game))
     .register(new GameplayScreen(game))
+    .register(new VictoryScreen(game))
     .register(new GameOverScreen(game))
     .register(new ShopScreen(game));
 

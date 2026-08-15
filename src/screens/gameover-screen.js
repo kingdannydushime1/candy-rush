@@ -1,3 +1,10 @@
+/* ============================================================
+   GAME OVER
+   REVIVE is ALWAYS shown (watch a video to come back exactly
+   where you died). Without a real SDK (GitHub Pages demo) the
+   revive is granted instantly. RETRY restarts the same level.
+   ============================================================ */
+
 class GameOverScreen extends BaseScreen {
   constructor(game) {
     super(game, 'gameover');
@@ -6,9 +13,13 @@ class GameOverScreen extends BaseScreen {
   build(options = {}) {
     const score = options.score || 0;
     const best = options.best || 0;
-    const stars = options.stars != null ? options.stars : 0;
     const coins = options.coins || 0;
     const isNewBest = !!options.isNewBest;
+    const level = options.level || 1;
+    const worldName = options.worldName || '';
+
+    this.level = level;
+    this.reviving = false;
 
     this.el = document.createElement('div');
     this.el.className = 'screen gameover-screen';
@@ -17,16 +28,14 @@ class GameOverScreen extends BaseScreen {
 
     const panel = new Panel({ image: 'assets/ui/f.png' });
     const children = [this.titleEl(isNewBest ? LANG.t('gameover.newBest') : LANG.t('gameover.title'), isNewBest)];
-    children.push(this.starsEl(stars));
+    children.push(this.levelEl(level, worldName));
     children.push(this.scoreEl(score));
     if (coins > 0) children.push(this.coinsEl(coins));
     children.push(this.bestEl(best));
     children.push(this.buttonEl(LANG.t('gameover.retry'), 'primary', () => this.retry()));
-    // REVIVE replaces the MENU button : the video icon shows that
-    // watching an ad brings you right back where you died.
-    if (Bridge.advertisement.isRewardedSupported()) {
-      children.push(this.buttonEl(`${this.videoIcon()} ${LANG.t('gameover.revive')}`, 'secondary', (event, btn) => this.revive(btn)));
-    }
+    // REVIVE always visible — the video icon shows that watching an ad
+    // brings you right back where you died.
+    children.push(this.buttonEl(`${this.videoIcon()} ${LANG.t('gameover.revive')}`, 'secondary', (event, btn) => this.revive(btn)));
     panel.add(...children);
     this.el.appendChild(panel.el);
 
@@ -40,6 +49,13 @@ class GameOverScreen extends BaseScreen {
     h.className = `modal-title ${isNewBest ? 'title-new-best' : ''}`;
     h.textContent = text;
     return h;
+  }
+
+  levelEl(level, worldName) {
+    const div = document.createElement('div');
+    div.className = 'gameover-level';
+    div.textContent = `${LANG.t('gameplay.level')} ${level} · ${worldName}`;
+    return div;
   }
 
   starsEl(count) {
@@ -85,24 +101,28 @@ class GameOverScreen extends BaseScreen {
 
   retry() {
     this.game.audio.click();
-    this.game.show(this.game.config.playTarget || 'gameplay');
+    this.game.show(this.game.config.playTarget || 'gameplay', { level: this.level });
   }
 
   revive(btn) {
+    if (this.reviving) return;
     this.game.audio.click();
+    this.reviving = true;
     if (btn && btn.el) btn.el.disabled = true;
-    Bridge.advertisement.showRewarded('revive').then((rewarded) => {
-      if (rewarded) {
+    const grant = (ok) => {
+      this.reviving = false;
+      if (ok) {
         this.game.audio.revive();
-        this.game.show('gameplay', { revive: true });
+        this.game.show('gameplay', { level: this.level, revive: true });
       } else if (btn && btn.el) {
         btn.el.disabled = false;
       }
-    });
-  }
-
-  menu() {
-    this.game.audio.click();
-    this.game.show('menu');
+    };
+    if (Bridge.advertisement.isRewardedSupported()) {
+      Bridge.advertisement.showRewarded('revive').then((rewarded) => grant(rewarded));
+    } else {
+      // No SDK (GitHub Pages / local demo) : instant free revive
+      setTimeout(() => grant(true), 250);
+    }
   }
 }

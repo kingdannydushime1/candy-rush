@@ -3,12 +3,14 @@
     "minimumDelayBetweenInterstitial": 60,
     "interstitial": {
       "placements": [
-        { "id": "game_over" }
+        { "id": "game_over" },
+        { "id": "level_complete" }
       ]
     },
     "rewarded": {
       "placements": [
-        { "id": "revive" }
+        { "id": "revive" },
+        { "id": "bonus" }
       ]
     }
   },

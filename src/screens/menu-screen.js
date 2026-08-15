@@ -6,6 +6,9 @@ class MenuScreen extends BaseScreen {
   build() {
     const config = this.game.config;
     const best = this.game.storage.get('best', 0);
+    const daily = this.game.storage.get('daily', null);
+    const today = new Date().toDateString();
+    const canClaim = config.features.dailyReward && (!daily || daily.date !== today);
 
     this.el = document.createElement('div');
     this.el.className = 'screen menu-screen';
@@ -20,23 +23,31 @@ class MenuScreen extends BaseScreen {
         </div>
         <div class="menu-buttons">
           ${this.playButton()}
+          ${config.features.levels ? this.levelsButton() : ''}
           ${config.features.shop ? this.shopButton() : ''}
         </div>
+        ${canClaim ? this.dailyBanner() : ''}
       </div>
     `;
     this.el.insertBefore(BG.build('menu'), this.el.firstChild);
-    // Sound toggle lives OUTSIDE the centered column, anchored to the
-    // top-right corner of the screen (never overlaps the title).
     this.el.insertAdjacentHTML('beforeend', `<div class="menu-sound">${this.soundButton()}</div>`);
 
     this.el.querySelector('.btn-play').addEventListener('click', () => this.startGame());
+    const levelsButton = this.el.querySelector('.btn-levels');
+    if (levelsButton) levelsButton.addEventListener('click', () => this.openLevels());
     const shopButton = this.el.querySelector('.btn-shop');
     if (shopButton) shopButton.addEventListener('click', () => this.openShop());
     this.el.querySelector('.btn-sound').addEventListener('click', (event) => this.toggleSound(event));
+    const dailyBtn = this.el.querySelector('.btn-daily');
+    if (dailyBtn) dailyBtn.addEventListener('click', () => this.claimDaily(dailyBtn));
 
     this.onKeyDown((event) => {
       if (event.code === 'Enter' || event.code === 'Space') this.startGame();
     });
+  }
+
+  enter(previous, options) {
+    this.game.audio.playMusic('assets/music/menu.ogg');
   }
 
   playButton() {
@@ -44,6 +55,15 @@ class MenuScreen extends BaseScreen {
       <button type="button" class="btn btn-primary btn-play" aria-label="Play">
         <img src="assets/ui/b_4.png" alt="" draggable="false">
         <span class="btn-label">${LANG.t('menu.play')}</span>
+      </button>
+    `;
+  }
+
+  levelsButton() {
+    return `
+      <button type="button" class="btn btn-primary btn-levels" aria-label="Levels">
+        <img src="assets/ui/b_1.png" alt="" draggable="false">
+        <span class="btn-label">${LANG.t('menu.levels')}</span>
       </button>
     `;
   }
@@ -67,14 +87,44 @@ class MenuScreen extends BaseScreen {
     `;
   }
 
+  dailyBanner() {
+    return `
+      <button type="button" class="btn btn-daily" aria-label="Daily reward">
+        <span class="daily-gift">🎁</span>
+        <span class="daily-text">${LANG.t('menu.daily')}</span>
+        <span class="daily-claim">${LANG.t('menu.dailyClaim')}</span>
+      </button>
+    `;
+  }
+
   startGame() {
     this.game.audio.click();
-    this.game.show(this.game.config.playTarget || 'gameplay');
+    const progress = this.game.storage.get('progress', { unlocked: 1 });
+    const next = Math.max(1, progress.unlocked || 1);
+    this.game.show(this.game.config.playTarget || 'gameplay', { level: next });
+  }
+
+  openLevels() {
+    this.game.audio.click();
+    this.game.show('levels');
   }
 
   openShop() {
     this.game.audio.click();
     this.game.show('shop');
+  }
+
+  claimDaily(btn) {
+    this.game.audio.revive();
+    const reward = 50;
+    this.game.storage.set('coins', this.game.storage.get('coins', 0) + reward);
+    this.game.storage.set('daily', { date: new Date().toDateString() });
+    if (btn) {
+      btn.disabled = true;
+      btn.classList.add('claimed');
+      const text = btn.querySelector('.daily-text');
+      if (text) text.textContent = `${LANG.t('menu.dailyDone')} +${reward} ${LANG.t('shop.coins')}`;
+    }
   }
 
   toggleSound(event) {

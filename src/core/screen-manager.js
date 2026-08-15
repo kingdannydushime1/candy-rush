@@ -23,7 +23,14 @@ class ScreenManager {
     this.container.appendChild(next.el);
     if (typeof UI !== 'undefined') UI.setupLoaded(next.el);
     next.enter(previous, options);
-    if (previous && previous !== next) requestAnimationFrame(() => previous.destroy());
     this.current = next;
+    // Deferred teardown : screens are singletons, so only destroy the previous
+    // one if it is no longer the active screen (a stale callback must never
+    // kill the screen the player is currently looking at).
+    if (previous && previous !== next) {
+      requestAnimationFrame(() => {
+        if (this.current !== previous) previous.destroy();
+      });
+    }
   }
 }

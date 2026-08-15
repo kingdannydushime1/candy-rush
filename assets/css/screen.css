@@ -814,6 +814,415 @@ body {
 }
 
 /* ============================================================
+   GAMEPLAY — level HUD (objective bar, level tag, FEVER)
+   ============================================================ */
+
+.hud-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* Objective progress bar — own row under the HUD, never overlaps */
+.objective-wrap {
+  position: absolute;
+  top: calc(clamp(52px, 11vw, 84px) + env(safe-area-inset-top));
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  padding: 0 clamp(10px, 3vw, 22px);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.objective-bar {
+  display: flex;
+  align-items: center;
+  gap: clamp(4px, 1.4vw, 8px);
+  padding: clamp(3px, 0.9vw, 6px) clamp(8px, 2vw, 14px);
+  border-radius: 999px;
+  background: rgba(74, 43, 62, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  max-width: 78vw;
+}
+
+.objective-label {
+  font-family: 'Kenney Mini Square', 'Segoe UI', sans-serif;
+  font-size: clamp(10px, 2.4vw, 14px);
+  letter-spacing: 0.08em;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+
+.objective-track {
+  width: clamp(56px, 16vw, 150px);
+  height: clamp(8px, 1.9vw, 12px);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+  overflow: hidden;
+  flex-shrink: 1;
+}
+
+.objective-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff9ed8, #ffd23f);
+  transition: width 0.2s ease;
+}
+
+.objective-wrap.objective-done .objective-fill {
+  background: linear-gradient(90deg, #7dffb0, #3ecfa0);
+}
+
+.objective-value {
+  font-family: 'Kenney Mini Square', 'Segoe UI', sans-serif;
+  font-size: clamp(10px, 2.4vw, 14px);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+
+/* Level number badge (HUD left) */
+.level-tag {
+  width: clamp(28px, 6.4vw, 42px);
+  height: clamp(28px, 6.4vw, 42px);
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ffffff, #ffe3f1);
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 0 rgba(74, 43, 62, 0.22), 0 6px 12px rgba(74, 43, 62, 0.16);
+  flex-shrink: 0;
+}
+
+.level-tag-num {
+  font-family: 'Kenney Mini Square', 'Segoe UI', sans-serif;
+  font-size: clamp(12px, 2.8vw, 17px);
+  color: #7a4a66;
+}
+
+/* FEVER pill */
+.fever-pill {
+  padding: 3px clamp(10px, 2.4vw, 16px);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff9ed8, #c77dff);
+  border: 2px solid #fff;
+  color: #fff;
+  font-family: 'Kenney Mini Square', 'Segoe UI', sans-serif;
+  font-size: clamp(12px, 3vw, 16px);
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  animation: fever-pulse 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes fever-pulse {
+  from { transform: scale(1); }
+  to { transform: scale(1.14); }
+}
+
+/* ============================================================
+   MENU — daily reward banner
+   ============================================================ */
+
+.btn-daily {
+  display: flex;
+  align-items: center;
+  gap: clamp(6px, 1.6vw, 12px);
+  margin-top: clamp(8px, 2vw, 14px);
+  padding: clamp(6px, 1.6vw, 10px) clamp(14px, 3.4vw, 22px);
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffd23f, #ff9ed8);
+  border: 3px solid #fff;
+  color: #fff;
+  font-family: 'Kenney Mini Square', 'Segoe UI', sans-serif;
+  font-size: clamp(12px, 3vw, 16px);
+  letter-spacing: 0.05em;
+  text-shadow: 0 2px 0 rgba(122, 60, 0, 0.85);
+  box-shadow: 0 4px 14px rgba(74, 43, 62, 0.28);
+  cursor: pointer;
+  animation: daily-bounce 1.2s ease-in-out infinite alternate;
+}
+
+.btn-daily .daily-gift {
+  font-size: 1.4em;
+}
+
+.btn-daily .daily-claim {
+  background: #fff;
+  color: #e0852b;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.85em;
+  text-shadow: none;
+}
+
+.btn-daily.claimed {
+  animation: none;
+  filter: saturate(0.55) brightness(0.98);
+}
+
+@keyframes daily-bounce {
+  from { transform: translateY(0); }
+  to { transform: translateY(-4px); }
+}
+
+/* ============================================================
+   VICTORY screen
+   ============================================================ */
+
+.victory-screen .panel {
+  width: min(88vw, 440px);
+}
+
+.victory-title {
+  color: #ffd23f;
+}
+
+.victory-world {
+  font-family: 'Kenney Mini Square', 'Segoe UI', sans-serif;
+  font-size: clamp(13px, 3vw, 18px);
+  color: #fff;
+  letter-spacing: 0.06em;
+  text-shadow: 0 2px 0 rgba(122, 60, 0, 0.8), 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+.victory-stars img {
+  width: clamp(34px, 8vw, 56px);
+  opacity: 0;
+}
+
+.victory-stars img.star-pop {
+  animation: star-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes star-pop {
+  0% { transform: scale(0) rotate(-30deg); opacity: 0; }
+  70% { transform: scale(1.25) rotate(6deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.victory-toast {
+  position: absolute;
+  bottom: calc(12% + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: rgba(74, 43, 62, 0.92);
+  color: #fff;
+  font-family: 'Kenney Mini Square', 'Segoe UI', sans-serif;
+  font-size: clamp(13px, 3.2vw, 17px);
+  letter-spacing: 0.05em;
+  opacity: 0;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.victory-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-4px);
+}
+
+.gameover-level {
+  font-family: 'Kenney Mini Square', 'Segoe UI', sans-serif;
+  font-size: clamp(11px, 2.6vw, 15px);
+  color: #ffe3b0;
+  letter-spacing: 0.05em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* ============================================================
+   LEVEL SELECT
+   ============================================================ */
+
+.levels-head {
+  position: absolute;
+  top: calc(clamp(10px, 2.6vw, 20px) + env(safe-area-inset-top));
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 clamp(14px, 3.4vw, 24px);
+  z-index: 2;
+}
+
+.levels-head .modal-title {
+  font-size: clamp(20px, 5vw, 30px);
+}
+
+.levels-scroll {
+  position: absolute;
+  top: calc(clamp(64px, 10vw, 92px) + env(safe-area-inset-top));
+  bottom: 0;
+  left: 0;
+  right: 0;
+  overflow-y: auto;
+  padding: 0 clamp(10px, 2.6vw, 20px) 24px;
+  z-index: 1;
+  -webkit-overflow-scrolling: touch;
+}
+
+.world-section {
+  margin-bottom: clamp(10px, 2.4vw, 18px);
+}
+
+.world-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+}
+
+.world-name {
+  font-family: 'Kenney Mini Square', 'Segoe UI', sans-serif;
+  font-size: clamp(13px, 3.2vw, 18px);
+  color: #5b3a4e;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.world-stars {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'Kenney Mini Square', 'Segoe UI', sans-serif;
+  font-size: clamp(12px, 2.8vw, 15px);
+  color: #e0852b;
+}
+
+.world-stars img {
+  width: clamp(16px, 4vw, 22px);
+  height: auto;
+}
+
+.levels-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(44px, 11vw, 66px), 1fr));
+  gap: clamp(6px, 1.6vw, 10px);
+}
+
+.level-btn {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 16px;
+  border: 3px solid #fff;
+  background: linear-gradient(180deg, #ffffff, #ffe9f2);
+  color: #7a4a66;
+  font-family: 'Kenney Mini Square', 'Segoe UI', sans-serif;
+  font-size: clamp(14px, 3.4vw, 20px);
+  box-shadow: 0 4px 0 rgba(74, 43, 62, 0.22);
+  cursor: pointer;
+  transition: transform 0.08s ease;
+}
+
+.level-btn:active {
+  transform: scale(0.92);
+}
+
+.level-btn.locked {
+  background: linear-gradient(180deg, #e8e2e6, #d9d2d8);
+  color: #a99fa6;
+  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.level-btn-stars {
+  position: absolute;
+  bottom: 2px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: clamp(9px, 2.2vw, 13px);
+  color: #f5a300;
+  letter-spacing: 1px;
+}
+
+.level-btn-lock {
+  font-size: clamp(12px, 3vw, 16px);
+}
+
+/* ============================================================
+   SHOP — video unlock section
+   ============================================================ */
+
+.shop-section-label {
+  align-self: flex-start;
+  font-family: 'Kenney Mini Square', 'Segoe UI', sans-serif;
+  font-size: clamp(12px, 3vw, 16px);
+  color: #fff;
+  letter-spacing: 0.1em;
+  text-shadow: 0 2px 0 rgba(122, 60, 0, 0.8);
+  margin-top: 4px;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(120px, 30vw, 170px), 1fr));
+  gap: clamp(8px, 2vw, 12px);
+  width: 100%;
+}
+
+.video-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.45);
+  border: 2px solid rgba(255, 255, 255, 0.7);
+}
+
+.video-card.owned {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.video-card.equipped {
+  border-color: #ffd23f;
+  box-shadow: 0 0 12px rgba(255, 210, 63, 0.45);
+}
+
+.video-card-icon {
+  font-size: clamp(26px, 7vw, 40px);
+  line-height: 1;
+}
+
+.video-card-name {
+  font-family: 'Kenney Mini Square', 'Segoe UI', sans-serif;
+  font-size: clamp(10px, 2.6vw, 14px);
+  color: #5b3a4e;
+  text-align: center;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+  min-height: 2.2em;
+  display: flex;
+  align-items: center;
+}
+
+.video-card .btn-secondary {
+  width: clamp(84px, 24vw, 120px);
+  flex-shrink: 0;
+}
+
+.video-card .btn-secondary .btn-label {
+  font-size: clamp(10px, 2.4vw, 13px);
+}
+
+/* ============================================================
    SMALL SCREENS — keep everything inside the viewport
    ============================================================ */
 
@@ -886,6 +1295,39 @@ body {
   .game-controls {
     bottom: calc(6px + env(safe-area-inset-bottom));
     gap: clamp(6px, 1.6vh, 10px);
+  }
+
+  .objective-wrap {
+    top: calc(clamp(40px, 9vh, 58px) + env(safe-area-inset-top));
+  }
+
+  .objective-track {
+    width: clamp(48px, 13vw, 110px);
+  }
+
+  .victory-screen .panel,
+  .gameover-screen .panel {
+    width: min(78vw, 470px);
+  }
+
+  .victory-stars img {
+    width: clamp(22px, 6vh, 34px);
+  }
+
+  .levels-scroll {
+    top: calc(clamp(56px, 8vh, 74px) + env(safe-area-inset-top));
+  }
+
+  .level-btn {
+    border-radius: 12px;
+  }
+
+  .video-card {
+    padding: 6px;
+  }
+
+  .video-card-icon {
+    font-size: clamp(20px, 5vh, 28px);
   }
 
   .shop-list {

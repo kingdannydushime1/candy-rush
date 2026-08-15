@@ -1,15 +1,13 @@
 /* ============================================================
-   GAMEPLAY — CANDY RUSH engine
+   GAMEPLAY — CANDY RUSH engine (level mode)
    ------------------------------------------------------------
-   The cute ball runs UP through candy gates that scroll down.
-   Controls (bottom bar):
-     ◀  hold to move the ball LEFT   ▶  hold to move RIGHT
-     4 round color buttons : one tap = direct color switch
-     (pink → mint → sky → lemon). Tapping the playfield still
-     cycles the color (desktop convenience).
-   Match the gate color to pass : mismatch costs a heart.
-   Move sideways to collect sweets, chain combos, trigger
-   PERFECT near-misses.
+   150 levels / 10 worlds. Each level has an objective :
+     SCORE   → reach the target score
+     CANDIES → collect N sweets (move left/right!)
+     SURVIVE → pass every gate
+   Controls (bottom bar): ◀ ▶ to move, 4 color buttons = exact
+   color. Combo ≥ 5 triggers FEVER (double points, glow, music
+   pitch). Passing the objective → VICTORY screen.
    ============================================================ */
 
 /* Round color button gradient + arrow icons (no external assets). */
@@ -22,6 +20,8 @@ const CTL_ICONS = {
   right: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4l8 8-8 8" fill="none" stroke="#7a4a66" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 };
 
+const FEVER_RAINBOW = ['#ff9ed8', '#8fe8c6', '#8fd0ff', '#ffe58a', '#c77dff', '#ffb56b'];
+
 class GameplayScreen extends BaseScreen {
   constructor(game) {
     super(game, 'gameplay');
@@ -31,20 +31,27 @@ class GameplayScreen extends BaseScreen {
 
   /* ----- state ----- */
 
-  resetRun() {
-    const cfg = this.game.config.game;
+  resetRun(levelDef) {
+    const cfg = this.game.config;
     const owned = this.game.storage.get('owned', {});
-    this.maxHearts = Math.min(cfg.maxHearts, (this.game.config.hud.hearts || 3) + (owned.heart_plus ? 1 : 0));
+    const equipped = this.game.storage.get('equipped', {});
+    this.level = levelDef || cfg.getLevel(1);
+    this.maxHearts = Math.min(cfg.game.maxHearts, (cfg.hud.hearts || 3) + (owned.heart_plus ? 1 : 0));
     this.hearts = this.maxHearts;
     this.score = 0;
     this.coinsEarned = 0;
+    this.candiesCollected = 0;
     this.combo = 0;
     this.gatesPassed = 0;
-    this.speed = cfg.baseSpeed;
+    this.gatesProcessed = 0;
+    this.levelGates = this.level.gates;
+    this.objective = this.level.objective;
+    this.speed = this.level.speed;
+    this.gapSec = this.level.gapSec;
     this.ballColor = 0;
-    this.ballX = null;   // horizontal position (set to center on resize)
+    this.ballX = null;
     this.ballVx = 0;
-    this.moveDir = 0;    // -1 left / 0 idle / +1 right
+    this.moveDir = 0;
     this.lastTapTime = -999;
     this.tapCount = 0;
     this.invulnUntil = 0;
@@ -61,22 +68,35 @@ class GameplayScreen extends BaseScreen {
     this.floaters = [];
     this.lines = [];
     this.clouds = [];
+    this.trail = [];
     this.tutorialDone = false;
     this.paused = false;
     this.state = 'idle';
+    this.won = false;
+    this.winTimer = 0;
     this.dying = 0;
     this.deathSnapshot = null;
     this.nowSec = 0;
     this.pf = { w: 0, h: 0, x: 0, ballY: 0, r: 0, margin: 26 };
     this.comboVisible = false;
+    this.fever = false;
+    this.feverPulse = 0;
+    // equipped cosmetics (video unlocks)
+    this.skin = equipped.skin || 'default';
+    this.face = equipped.face || 'default';
+    this.trailType = equipped.trail || 'none';
+    this.gateStyle = equipped.gate || 'default';
   }
 
   captureSnapshot() {
     return {
+      level: this.level.n,
       score: this.score,
       coinsEarned: this.coinsEarned,
+      candiesCollected: this.candiesCollected,
       speed: this.speed,
       gatesPassed: this.gatesPassed,
+      gatesProcessed: this.gatesProcessed,
       gates: this.gates.map((g) => ({ ...g })),
       sweets: this.sweets.map((s) => ({ ...s })),
       tutorialDone: this.tutorialDone
@@ -86,35 +106,49 @@ class GameplayScreen extends BaseScreen {
   restoreSnapshot() {
     const snap = this.deathSnapshot;
     if (!snap) return;
+    const cfg = this.game.config;
     const owned = this.game.storage.get('owned', {});
-    this.maxHearts = Math.min(this.game.config.game.maxHearts, (this.game.config.hud.hearts || 3) + (owned.heart_plus ? 1 : 0));
+    this.maxHearts = Math.min(cfg.game.maxHearts, (cfg.hud.hearts || 3) + (owned.heart_plus ? 1 : 0));
     this.hearts = this.maxHearts;
+    this.level = cfg.getLevel(snap.level);
     this.score = snap.score;
     this.coinsEarned = snap.coinsEarned;
-    this.speed = Math.max(this.game.config.game.baseSpeed, snap.speed * 0.85);
+    this.candiesCollected = snap.candiesCollected;
+    this.speed = snap.speed;
     this.gatesPassed = snap.gatesPassed;
+    this.gatesProcessed = snap.gatesProcessed;
+    this.levelGates = this.level.gates;
+    this.objective = this.level.objective;
     this.gates = snap.gates;
     this.sweets = snap.sweets;
     this.tutorialDone = snap.tutorialDone;
     this.combo = 0;
     this.comboVisible = false;
+    this.fever = false;
     this.particles = [];
     this.floaters = [];
     this.lines = [];
+    this.trail = [];
     this.invulnUntil = this.nowSec + 1.5;
     this.state = 'running';
-    this.updateHeartsDisplay();
-    this.updateComboPill();
+    this.game.audio.playMusic(this.level.music);
+    this.refreshHud();
   }
 
   /* ----- DOM ----- */
 
-  build() {
+  build(options = {}) {
     const config = this.game.config;
+
+    // build() runs BEFORE enter() (screen-manager), so resolve the level now
+    // to build the right world background (else it stays on world 1 forever)
+    const n = Math.max(1, Math.min(config.totalLevels, options.level || this.level.n || 1));
+    const lvlDef = config.getLevel(n);
+    this.level = lvlDef;
 
     this.el = document.createElement('div');
     this.el.className = 'screen gameplay-screen';
-    this.el.appendChild(BG.build('gameplay'));
+    this.el.appendChild(BG.build('gameplay', lvlDef.bg));
 
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'game-canvas';
@@ -128,9 +162,11 @@ class GameplayScreen extends BaseScreen {
           <img src="assets/ui/c.png" alt="" draggable="false">
           <span class="hud-score-value">0</span>
         </div>
+        <div class="level-tag"><span class="level-tag-num">1</span></div>
       </div>
       <div class="hud-center">
         <div class="combo-pill hidden"><span>${LANG.t('gameplay.combo')}</span> <b>x1</b></div>
+        <div class="fever-pill hidden">${LANG.t('gameplay.fever')} 🔥</div>
       </div>
       <div class="hud-right">
         <div class="hud-hearts"></div>
@@ -170,6 +206,18 @@ class GameplayScreen extends BaseScreen {
     this.el.appendChild(this.pauseMenu);
     this.el.appendChild(this.controls);
 
+    // objective progress bar : its own row below the HUD (no overlap)
+    this.objectiveWrap = document.createElement('div');
+    this.objectiveWrap.className = 'objective-wrap hidden';
+    this.objectiveWrap.innerHTML = `
+      <div class="objective-bar">
+        <span class="objective-label">${LANG.t('gameplay.objective.score')}</span>
+        <div class="objective-track"><div class="objective-fill"></div></div>
+        <span class="objective-value">0/0</span>
+      </div>
+    `;
+    this.el.appendChild(this.objectiveWrap);
+
     this.loadImages();
 
     // interactions
@@ -197,10 +245,10 @@ class GameplayScreen extends BaseScreen {
     holdArrow(this.controls.querySelector('.ctl-left'), -1);
     holdArrow(this.controls.querySelector('.ctl-right'), 1);
 
-    // One tap = the exact color (no more cycling to find it)
     this.controls.querySelectorAll('.ctl-color').forEach((btn) => {
       btn.addEventListener('click', () => this.setColor(parseInt(btn.dataset.color, 10)));
     });
+
     this.hud.querySelector('.btn-pause').addEventListener('click', () => {
       this.game.audio.click();
       this.togglePause();
@@ -274,7 +322,8 @@ class GameplayScreen extends BaseScreen {
     if (options.revive && this.deathSnapshot) {
       this.restoreSnapshot();
     } else {
-      this.resetRun();
+      const n = Math.max(1, Math.min(this.game.config.totalLevels, options.level || 1));
+      this.resetRun(this.game.config.getLevel(n));
       this.state = 'ready';
       this.readyTimer = 0.7;
     }
@@ -282,6 +331,7 @@ class GameplayScreen extends BaseScreen {
     this.paused = false;
     this.pauseMenu.classList.add('hidden');
     this.resize();
+    this.game.audio.playMusic(this.level.music);
     this.onResize = () => this.resize();
     window.addEventListener('resize', this.onResize);
     this.lastTime = 0;
@@ -297,7 +347,8 @@ class GameplayScreen extends BaseScreen {
 
   restartRun() {
     this.game.audio.click();
-    this.resetRun();
+    const n = this.level.n;
+    this.resetRun(this.game.config.getLevel(n));
     this.state = 'ready';
     this.readyTimer = 0.7;
     this.paused = false;
@@ -314,7 +365,6 @@ class GameplayScreen extends BaseScreen {
     Bridge.platform.sendMessage(this.paused ? 'level_paused' : 'level_resumed');
   }
 
-  /* Forced pause from the platform (tab switch, ad, system pause) */
   forcePause() {
     if ((this.state === 'running' || this.state === 'ready') && !this.paused) {
       this.paused = true;
@@ -341,11 +391,10 @@ class GameplayScreen extends BaseScreen {
       w: pfW,
       h,
       x: (w - pfW) / 2,
-      ballY: h < w ? h * 0.56 : h * 0.62, // a bit higher in landscape (control bar)
+      ballY: h < w ? h * 0.56 : h * 0.62,
       r: Math.max(15, Math.min(30, pfW * 0.075)),
       margin: Math.max(22, pfW * 0.05)
     };
-    // keep the ball inside the playfield after a resize
     const minX = this.pf.x + this.pf.margin + this.pf.r;
     const maxX = this.pf.x + this.pf.w - this.pf.margin - this.pf.r;
     if (this.ballX == null) this.ballX = this.pf.x + this.pf.w / 2;
@@ -359,7 +408,6 @@ class GameplayScreen extends BaseScreen {
     this.lastTime = time;
     this.nowSec = time / 1000;
     if (!this.paused) {
-      // slow-mo (PERFECT juice) recovers back to 1
       this.timeScale += (1 - this.timeScale) * Math.min(1, 6 * delta);
       this.update(delta * this.timeScale);
     }
@@ -379,9 +427,10 @@ class GameplayScreen extends BaseScreen {
     }
 
     if (this.state === 'running') {
+      // level speed : base + tiny ramp
       this.speed = Math.min(
         this.game.config.game.maxSpeed,
-        this.game.config.game.baseSpeed + this.gatesPassed * this.game.config.game.speedPerGate
+        this.level.speed + this.gatesPassed * 2
       );
       // horizontal movement (hold ◀ / ▶, keyboard arrows)
       const moveMax = Math.min(620, 340 + this.speed * 0.18);
@@ -390,14 +439,24 @@ class GameplayScreen extends BaseScreen {
       const minX = this.pf.x + this.pf.margin + this.pf.r;
       const maxX = this.pf.x + this.pf.w - this.pf.margin - this.pf.r;
       this.ballX = Math.max(minX, Math.min(maxX, this.ballX));
+
       this.spawnGates();
       this.moveWorld(wdt);
       this.processGates();
       this.updateSweets(wdt);
+      this.updateTrail(wdt);
+      this.checkWin();
+      this.updateFeverFx(wdt);
     } else if (this.state === 'dying') {
       this.dying -= wdt;
       if (this.dying <= 0) {
         this.finalize();
+        return;
+      }
+    } else if (this.state === 'won') {
+      this.winTimer -= wdt;
+      if (this.winTimer <= 0) {
+        this.finalizeWin();
         return;
       }
     }
@@ -425,12 +484,9 @@ class GameplayScreen extends BaseScreen {
   spawnGate() {
     const cfg = this.game.config.game;
     const color = this.pickColor();
-    const tapsNeeded = (color - this.ballColor + this.game.config.game.palette.length) % this.game.config.game.palette.length;
-    const minGap = Math.max(150, tapsNeeded * 0.24 * this.speed);
-    const gap = minGap + Math.random() * Math.min(220, 60 + this.speed * 0.12);
+    // SPACED gates : the gap scales with the level (gapSec seconds of travel)
+    const gap = this.speed * this.gapSec * (0.9 + Math.random() * 0.25);
     const h = Math.max(12, Math.min(24, this.pf.w * (0.038 + Math.random() * 0.02)));
-    // Place the gate relative to the CURRENT position of the last one
-    // (gates scroll down, so this keeps a consistent gap).
     const prevY = this.gates.length ? this.gates[this.gates.length - 1].y : 0;
     const newY = prevY - gap;
     this.gates.push({
@@ -444,13 +500,14 @@ class GameplayScreen extends BaseScreen {
   }
 
   spawnSweetsForGap(topY, bottomY) {
-    if (Math.random() < 0.35) return; // some gaps stay empty
-    const count = Math.random() < 0.55 ? 1 : 2;
+    const cfg = this.game.config.game;
+    const [min, max] = cfg.sweetsPerGap;
+    const count = min + Math.floor(Math.random() * (max - min + 1));
     for (let i = 0; i < count; i += 1) {
       const size = 26 + Math.random() * 10;
       this.sweets.push({
         x: this.pf.x + this.pf.margin + Math.random() * (this.pf.w - this.pf.margin * 2),
-        y: topY + Math.random() * Math.max(40, bottomY - topY),
+        y: topY + Math.random() * Math.max(60, bottomY - topY),
         kind: Math.floor(Math.random() * 6),
         size,
         r: size * 0.42,
@@ -461,8 +518,6 @@ class GameplayScreen extends BaseScreen {
   }
 
   spawnGates() {
-    // Re-read the newest gate each iteration: spawning pushes a new
-    // higher gate, so the loop must check the freshly pushed one.
     while (this.gates.length === 0 || this.gates[this.gates.length - 1].y > -200) {
       this.spawnGate();
     }
@@ -480,6 +535,7 @@ class GameplayScreen extends BaseScreen {
     for (const gate of this.gates) {
       if (!gate.processed && gate.y - gate.h / 2 >= bottom) {
         gate.processed = true;
+        this.gatesProcessed += 1;
         if (gate.color === this.ballColor) this.onPass(gate);
         else this.onHit(gate);
       }
@@ -488,9 +544,7 @@ class GameplayScreen extends BaseScreen {
   }
 
   perfectWindow() {
-    const cfg = this.game.config.game;
-    const shrink = (this.speed - cfg.baseSpeed) * 0.00012;
-    return Math.max(0.1, cfg.perfectWindow - shrink);
+    return this.level.perfectWindow;
   }
 
   onPass(gate) {
@@ -507,6 +561,7 @@ class GameplayScreen extends BaseScreen {
       this.combo += 1;
     }
     pts *= mult;
+    if (this.fever) pts *= cfg.feverPointsMult;
     this.score += pts;
 
     const color = cfg.palette[gate.color];
@@ -524,6 +579,7 @@ class GameplayScreen extends BaseScreen {
       this.comboPulse = 1;
       this.updateComboPill();
     }
+    if (this.combo >= cfg.feverCombo && !this.fever) this.startFever();
     if (this.combo > 0 && this.combo % 5 === 0) {
       this.float(`${LANG.t('gameplay.combo')} x${multiplier}`, this.pf.x + this.pf.w / 2, this.pf.ballY - this.pf.r - 90, '#ffd23f', 24);
       this.game.audio.comboMilestone(Math.min(6, Math.floor(this.combo / 5)));
@@ -531,6 +587,7 @@ class GameplayScreen extends BaseScreen {
 
     if (!this.tutorialDone && this.gatesPassed >= 2) this.tutorialDone = true;
     this.updateScoreDisplay();
+    this.updateObjective();
   }
 
   onHit(gate) {
@@ -538,21 +595,22 @@ class GameplayScreen extends BaseScreen {
     if (owned.shield && !this.shieldUsed) {
       this.shieldUsed = true;
       this.invulnUntil = this.nowSec + 1.0;
-      this.burst(this.pf.ballY, '#ffffff', 16);
-      this.float('🛡', this.pf.x + this.pf.w / 2, this.pf.ballY - this.pf.r - 40, '#ffffff', 22);
+      this.burst(this.ballX, '#ffffff', 16);
+      this.float('🛡', this.ballX, this.pf.ballY - this.pf.r - 40, '#ffffff', 22);
       this.game.audio.hit();
       return;
     }
     this.hearts -= 1;
     this.combo = 0;
     this.comboVisible = false;
+    this.stopFever();
     this.updateComboPill();
     this.shake = 0.55;
     this.flash = 0.6;
     this.hitTimer = 0.35;
     this.invulnUntil = this.nowSec + 1.3;
     const color = this.game.config.game.palette[this.ballColor];
-    this.burst(this.pf.ballY, color.edge, 18);
+    this.burst(this.ballX, color.edge, 18);
     this.game.audio.hit();
     this.updateHeartsDisplay();
     if (this.hearts <= 0) this.startDeath();
@@ -585,24 +643,129 @@ class GameplayScreen extends BaseScreen {
   }
 
   onCollect(sweet) {
+    const cfg = this.game.config.game;
     const owned = this.game.storage.get('owned', {});
     this.coinsEarned += 1;
-    const pts = 25 * (owned.double_points ? 2 : 1);
+    this.candiesCollected += 1;
+    let pts = 25 * (owned.double_points ? 2 : 1);
+    if (this.fever) pts *= cfg.feverPointsMult;
     this.score += pts;
     this.sparkle(sweet.x, sweet.y, '#ffffff');
     this.float(`+${pts}`, sweet.x, sweet.y - 22, '#ff9ed8', 15);
     this.game.audio.gem();
     this.updateScoreDisplay();
+    this.updateObjective();
   }
 
+  /* ----- objective + win ----- */
+
+  objectiveProgress() {
+    const t = this.objective;
+    if (t.type === 'score') return { value: this.score, target: t.target };
+    if (t.type === 'candies') return { value: this.candiesCollected, target: t.target };
+    return { value: this.gatesProcessed, target: t.target };
+  }
+
+  updateObjective() {
+    const wrap = this.objectiveWrap;
+    if (!wrap) return;
+    const p = this.objectiveProgress();
+    wrap.classList.remove('hidden');
+    wrap.querySelector('.objective-label').textContent = LANG.t(`gameplay.objective.${this.objective.type}`);
+    wrap.querySelector('.objective-value').textContent = `${Math.min(p.value, p.target)}/${p.target}`;
+    const pct = Math.min(1, p.value / p.target);
+    wrap.querySelector('.objective-fill').style.width = `${Math.round(pct * 100)}%`;
+    if (p.value >= p.target) wrap.classList.add('objective-done');
+  }
+
+  checkWin() {
+    if (this.state !== 'running' || this.won) return;
+    const p = this.objectiveProgress();
+    if (p.value >= p.target) this.startWin();
+  }
+
+  startWin() {
+    if (this.won) return;
+    this.won = true;
+    this.state = 'won';
+    this.winTimer = 1.3;
+    this.game.audio.revive();
+    // celebration : confetti burst + coin fountain
+    for (let i = 0; i < 3; i += 1) {
+      setTimeout(() => this.confettiBurst(), i * 150);
+    }
+    this.float(LANG.t('victory.title'), this.pf.x + this.pf.w / 2, this.pf.ballY - this.pf.r - 70, '#ffd23f', 30);
+    this.shake = 0.4;
+  }
+
+  confettiBurst() {
+    const cfg = this.game.config.game;
+    const cx = this.pf.x + this.pf.w / 2;
+    for (let i = 0; i < 34; i += 1) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 90 + Math.random() * 240;
+      this.particles.push({
+        x: cx, y: this.pf.ballY,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 120,
+        life: 0.7 + Math.random() * 0.6,
+        maxLife: 1.3,
+        size: 3 + Math.random() * 5,
+        color: FEVER_RAINBOW[i % FEVER_RAINBOW.length],
+        type: 'circle',
+        gravity: 320
+      });
+    }
+  }
+
+  starsEarned() {
+    const p = this.objectiveProgress();
+    const ratio = p.value / p.target;
+    if (this.objective.type === 'survive') {
+      return this.hearts >= this.maxHearts ? 3 : this.hearts >= 2 ? 2 : 1;
+    }
+    if (ratio >= 1.9) return 3;
+    if (ratio >= 1.45) return 2;
+    return 1;
+  }
+
+  finalizeWin() {
+    if (this.state !== 'won') return;
+    this.state = 'idle';
+    this.game.audio.setMusicRate(1);
+    const cfg = this.game.config;
+    const stars = this.starsEarned();
+    const progress = this.game.storage.get('progress', { unlocked: 1, stars: {} });
+    progress.stars = progress.stars || {};
+    progress.stars[this.level.n] = Math.max(progress.stars[this.level.n] || 0, stars);
+    progress.unlocked = Math.max(progress.unlocked || 1, Math.min(cfg.totalLevels, this.level.n + 1));
+    this.game.storage.set('progress', progress);
+    this.game.storage.set('coins', this.game.storage.get('coins', 0) + this.coinsEarned);
+    this.game._completions = (this.game._completions || 0) + 1;
+    if (this.game._completions % cfg.game.interstitialsEveryLevels === 0) {
+      setTimeout(() => Bridge.advertisement.showInterstitial('level_complete'), 600);
+    }
+    this.game.show('victory', {
+      level: this.level.n,
+      worldName: this.level.worldName,
+      stars,
+      score: this.score,
+      coins: this.coinsEarned,
+      isLast: this.level.n >= cfg.totalLevels
+    });
+  }
+
+  /* ----- death ----- */
+
   startDeath() {
-    if (this.state === 'dying' || this.state === 'idle') return;
+    if (this.state === 'dying' || this.state === 'idle' || this.state === 'won') return;
     this.state = 'dying';
     this.dying = 0.9;
     this.deathSnapshot = this.captureSnapshot();
     this.shake = 0.8;
     this.flash = 0.9;
     this.burst(this.ballX, this.pf.ballY, '#ffffff', 26);
+    this.stopFever();
     this.game.audio.gameOver();
     Bridge.platform.sendMessage('level_failed');
   }
@@ -610,27 +773,50 @@ class GameplayScreen extends BaseScreen {
   finalize() {
     if (this.state !== 'dying') return;
     this.state = 'idle';
-    const cfg = this.game.config.game;
-    const stars = cfg.starScores.filter((s) => this.score >= s).length;
     const prevBest = this.game.storage.get('best', 0);
     const best = Math.max(prevBest, this.score);
     const isNewBest = this.score > prevBest && this.score > 0;
     this.game.storage.set('best', best);
-    this.game.storage.set('coins', this.game.storage.get('coins', 0) + this.coinsEarned);
     if (isNewBest) Bridge.platform.sendMessage('player_got_achievement');
     if (this.score > 0) Bridge.leaderboards.setScore(this.game.config.leaderboardId, this.score);
-    this.maybeShowInterstitial();
-    this.game.show('gameover', { score: this.score, best, stars, coins: this.coinsEarned, isNewBest });
+    this.game.show('gameover', {
+      score: this.score,
+      best,
+      coins: this.coinsEarned,
+      isNewBest,
+      level: this.level.n,
+      worldName: this.level.worldName
+    });
   }
 
-  maybeShowInterstitial() {
-    const cfg = this.game.config.game;
-    if (!Bridge.advertisement.isInterstitialSupported()) return;
-    this.game._interstitialCount = (this.game._interstitialCount || 0) + 1;
-    if (this.game._interstitialCount >= (cfg.interstitialsEvery || 2)) {
-      this.game._interstitialCount = 0;
-      setTimeout(() => Bridge.advertisement.showInterstitial('game_over'), 500);
-    }
+  /* ----- FEVER (combo ≥ 5) ----- */
+
+  startFever() {
+    this.fever = true;
+    this.feverPulse = 1;
+    this.float(LANG.t('gameplay.fever') + ' 🔥', this.pf.x + this.pf.w / 2, this.pf.ballY - this.pf.r - 60, '#ff9ed8', 28);
+    this.game.audio.comboMilestone(4);
+    this.updateFeverPill();
+    this.game.audio.setMusicRate(this.game.config.game.feverMusicRate);
+  }
+
+  stopFever() {
+    if (!this.fever) return;
+    this.fever = false;
+    this.feverPulse = 0;
+    this.updateFeverPill();
+    this.game.audio.setMusicRate(1);
+  }
+
+  updateFeverFx(wdt) {
+    if (this.fever) this.feverPulse = Math.min(1, this.feverPulse + wdt * 2);
+    else this.feverPulse = Math.max(0, this.feverPulse - wdt * 2);
+  }
+
+  updateFeverPill() {
+    const pill = this.hud.querySelector('.fever-pill');
+    if (!pill) return;
+    pill.classList.toggle('hidden', !this.fever);
   }
 
   /* ----- input ----- */
@@ -646,7 +832,6 @@ class GameplayScreen extends BaseScreen {
     this.updateColorButtons();
   }
 
-  /* Direct color selection from the round buttons (1 tap = exact color). */
   setColor(index) {
     if (this.state !== 'running' || this.paused) return;
     if (index < 0 || index >= this.game.config.game.palette.length) return;
@@ -666,16 +851,21 @@ class GameplayScreen extends BaseScreen {
     });
   }
 
-  /* Re-render HUD state (hearts, score, combo, color buttons). Called
-     after every reset so a fresh run always shows FULL hearts. */
-  refreshHud() {
-    this.updateScoreDisplay();
-    this.updateHeartsDisplay();
-    this.updateComboPill();
-    this.updateColorButtons();
-  }
-
   /* ----- fx ----- */
+
+  updateTrail(wdt) {
+    if (this.trailType === 'none' || this.state !== 'running') {
+      this.trail = [];
+      return;
+    }
+    this.trail.push({ x: this.ballX, y: this.pf.ballY, life: 0.45, vx: -this.ballVx * 0.25 });
+    if (this.trail.length > 14) this.trail.shift();
+    for (const t of this.trail) {
+      t.life -= wdt;
+      t.x += t.vx * wdt;
+    }
+    this.trail = this.trail.filter((t) => t.life > 0);
+  }
 
   updateFx(wdt) {
     this.squashX += (1 - this.squashX) * Math.min(1, 10 * wdt);
@@ -691,7 +881,7 @@ class GameplayScreen extends BaseScreen {
       p.rot += (p.vr || 0) * wdt;
     }
     this.particles = this.particles.filter((p) => p.life > 0);
-    if (this.particles.length > 160) this.particles.splice(0, this.particles.length - 160);
+    if (this.particles.length > 200) this.particles.splice(0, this.particles.length - 200);
     for (const f of this.floaters) {
       f.life -= wdt;
       f.y += f.vy * wdt;
@@ -710,7 +900,7 @@ class GameplayScreen extends BaseScreen {
         { img: 'assets/bg/cloud3.png', scale: 0.55, factor: 0.62, alpha: 0.5 },
         { img: 'assets/bg/clouds1.png', scale: 0.35, factor: 0.8, alpha: 0.35 }
       ];
-      defs.forEach((d, i) => {
+      defs.forEach((d) => {
         this.clouds.push({
           img: d.img,
           scale: d.scale,
@@ -732,8 +922,8 @@ class GameplayScreen extends BaseScreen {
   }
 
   updateLines(wdt) {
-    if (this.state === 'running' && this.speed > 600) {
-      const chance = Math.min(0.5, (this.speed - 600) / 700);
+    if (this.state === 'running' && this.speed > 380) {
+      const chance = Math.min(0.5, (this.speed - 380) / 700);
       if (Math.random() < chance) {
         this.lines.push({
           x: this.pf.x + this.pf.margin + Math.random() * (this.pf.w - this.pf.margin * 2),
@@ -792,6 +982,8 @@ class GameplayScreen extends BaseScreen {
   updateScoreDisplay() {
     const value = this.hud.querySelector('.hud-score-value');
     if (value) value.textContent = this.score.toLocaleString();
+    const tag = this.hud.querySelector('.level-tag-num');
+    if (tag) tag.textContent = this.level.n;
   }
 
   updateHeartsDisplay() {
@@ -820,6 +1012,15 @@ class GameplayScreen extends BaseScreen {
     }
   }
 
+  refreshHud() {
+    this.updateScoreDisplay();
+    this.updateHeartsDisplay();
+    this.updateComboPill();
+    this.updateColorButtons();
+    this.updateObjective();
+    this.updateFeverPill();
+  }
+
   /* ----- render ----- */
 
   render() {
@@ -836,9 +1037,11 @@ class GameplayScreen extends BaseScreen {
     this.drawLines();
     this.drawGates();
     this.drawSweets();
+    this.drawTrail();
     this.drawParticles();
     this.drawBall();
     this.drawFloaters();
+    this.drawFeverOverlay();
     this.drawTutorial();
     this.drawFlash();
 
@@ -872,7 +1075,7 @@ class GameplayScreen extends BaseScreen {
   drawLines() {
     if (this.lines.length === 0) return;
     const ctx = this.ctx;
-    const alpha = Math.min(0.3, (this.speed - 600) / 1200);
+    const alpha = Math.min(0.3, (this.speed - 380) / 800);
     ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
     for (const l of this.lines) {
       ctx.fillRect(l.x, l.y, 3, l.len);
@@ -884,10 +1087,12 @@ class GameplayScreen extends BaseScreen {
     const cfg = this.game.config.game;
     const x = this.pf.x;
     const w = this.pf.w;
+    const style = this.gateStyle;
     for (const gate of this.gates) {
       const col = cfg.palette[gate.color];
       const gy = gate.y - gate.h / 2;
       const r = gate.h / 2;
+      const pulse = 0.5 + 0.5 * Math.sin(this.nowSec * 5 + gate.y);
       // body
       ctx.fillStyle = col.body;
       this.rr(x, gy, w, gate.h, r);
@@ -900,10 +1105,39 @@ class GameplayScreen extends BaseScreen {
       ctx.fillStyle = col.edge;
       this.rr(x, gy + gate.h - gate.h * 0.3, w, gate.h * 0.3, r);
       ctx.fill();
-      // candy stripe
-      ctx.fillStyle = 'rgba(255,255,255,0.22)';
-      ctx.fillRect(x + w * 0.08, gy + gate.h * 0.55, w * 0.06, gate.h * 0.18);
-      ctx.fillRect(x + w * 0.86, gy + gate.h * 0.55, w * 0.06, gate.h * 0.18);
+      // candy stripes / decorations per gate style
+      if (style === 'striped') {
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        for (let sx = x - gate.h; sx < x + w + gate.h; sx += gate.h * 1.6) {
+          ctx.beginPath();
+          ctx.moveTo(sx, gy + gate.h);
+          ctx.lineTo(sx + gate.h, gy);
+          ctx.lineTo(sx + gate.h * 0.6, gy);
+          ctx.lineTo(sx - gate.h * 0.4, gy + gate.h);
+          ctx.closePath();
+          ctx.fill();
+        }
+      } else if (style === 'dots') {
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        const dotR = gate.h * 0.22;
+        for (let sx = x + w * 0.12; sx < x + w; sx += w * 0.22) {
+          ctx.beginPath();
+          ctx.arc(sx, gy + gate.h / 2, dotR, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (style === 'sparkle') {
+        ctx.fillStyle = `rgba(255,255,255,${(0.25 + 0.4 * pulse).toFixed(2)})`;
+        ctx.fillRect(x + w * 0.08, gy + gate.h * 0.55, w * 0.06, gate.h * 0.18);
+        ctx.fillRect(x + w * 0.86, gy + gate.h * 0.55, w * 0.06, gate.h * 0.18);
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 6 + 10 * pulse;
+        ctx.fillRect(x + w * 0.08, gy + gate.h * 0.55, w * 0.06, gate.h * 0.18);
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.22)';
+        ctx.fillRect(x + w * 0.08, gy + gate.h * 0.55, w * 0.06, gate.h * 0.18);
+        ctx.fillRect(x + w * 0.86, gy + gate.h * 0.55, w * 0.06, gate.h * 0.18);
+      }
     }
   }
 
@@ -930,6 +1164,32 @@ class GameplayScreen extends BaseScreen {
     }
   }
 
+  drawTrail() {
+    if (this.trailType === 'none' || this.trail.length === 0) return;
+    const ctx = this.ctx;
+    const colors = this.trailType === 'confetti' ? FEVER_RAINBOW
+      : this.trailType === 'star' ? ['#ffffff', '#ffe58a'] : ['#bfe8ff', '#ffffff'];
+    for (const t of this.trail) {
+      const alpha = Math.max(0, t.life / 0.45) * 0.55;
+      ctx.globalAlpha = alpha;
+      const c = colors[Math.floor(t.life * 20) % colors.length];
+      ctx.fillStyle = c;
+      if (this.trailType === 'star') {
+        ctx.save();
+        ctx.translate(t.x, t.y);
+        ctx.rotate(t.life * 6);
+        const s = 7;
+        ctx.fillRect(-s / 2, -s / 2, s, s);
+        ctx.restore();
+      } else {
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, 3 + t.life * 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
   drawParticles() {
     const ctx = this.ctx;
     for (const p of this.particles) {
@@ -953,10 +1213,20 @@ class GameplayScreen extends BaseScreen {
     }
   }
 
+  ballColors() {
+    const cfg = this.game.config.game;
+    if (this.skin === 'rainbow') {
+      const i = Math.floor(this.nowSec * 6) % FEVER_RAINBOW.length;
+      return { body: FEVER_RAINBOW[i], edge: FEVER_RAINBOW[(i + 1) % FEVER_RAINBOW.length], glow: 'rgba(255,255,255,0.6)' };
+    }
+    const skinDef = this.game.config.skins[this.skin];
+    if (skinDef) return { body: skinDef.body, edge: skinDef.edge, glow: skinDef.glow };
+    return cfg.palette[this.ballColor];
+  }
+
   drawBall() {
     const ctx = this.ctx;
-    const cfg = this.game.config.game;
-    const col = cfg.palette[this.ballColor];
+    const col = this.ballColors();
     const r = this.pf.r;
     const bx = this.ballX;
     const by = this.pf.ballY;
@@ -966,8 +1236,8 @@ class GameplayScreen extends BaseScreen {
     ctx.translate(bx, by);
     ctx.scale(this.squashX, this.squashY);
 
-    ctx.shadowColor = col.glow;
-    ctx.shadowBlur = 16;
+    ctx.shadowColor = this.fever ? '#ffffff' : col.glow;
+    ctx.shadowBlur = this.fever ? 26 : 16;
     const grad = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.1, 0, 0, r);
     grad.addColorStop(0, col.body);
     grad.addColorStop(0.75, col.body);
@@ -978,35 +1248,59 @@ class GameplayScreen extends BaseScreen {
     ctx.fill();
     ctx.shadowBlur = 0;
 
+    // candy stripes skin
+    if (this.skin === 'rainbow' || this.skin === 'gold') {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      for (let i = -r; i < r; i += r * 0.5) {
+        ctx.save();
+        ctx.translate(i, 0);
+        ctx.rotate(0.7);
+        ctx.fillRect(0, -r, r * 0.18, r * 2);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
     // shine
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.beginPath();
     ctx.ellipse(-r * 0.32, -r * 0.42, r * 0.28, r * 0.15, -0.55, 0, Math.PI * 2);
     ctx.fill();
 
-    // kawaii face (blinks while invulnerable)
-    const blink = this.invulnUntil > this.nowSec && Math.sin(this.nowSec * 26) > 0.55;
-    if (!blink) {
-      ctx.fillStyle = '#4a2b3e';
-      ctx.beginPath();
-      ctx.arc(-r * 0.3, -r * 0.05, r * 0.11, 0, Math.PI * 2);
-      ctx.arc(r * 0.3, -r * 0.05, r * 0.11, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#4a2b3e';
-      ctx.lineWidth = Math.max(2, r * 0.09);
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.arc(0, r * 0.02, r * 0.24, 0.2, Math.PI - 0.2);
-      ctx.stroke();
-      // blush
-      ctx.fillStyle = 'rgba(255,120,170,0.5)';
-      ctx.beginPath();
-      ctx.ellipse(-r * 0.46, r * 0.18, r * 0.16, r * 0.09, 0, 0, Math.PI * 2);
-      ctx.ellipse(r * 0.46, r * 0.18, r * 0.16, r * 0.09, 0, 0, Math.PI * 2);
-      ctx.fill();
+    // kawaii face (emoji skins, or blink while invulnerable)
+    if (this.face !== 'default') {
+      const emoji = { face_happy: '😆', face_cool: '😎', face_love: '🥰' }[this.face] || '😊';
+      ctx.font = `${r * 1.35}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(emoji, 0, r * 0.05);
+    } else {
+      const blink = this.invulnUntil > this.nowSec && Math.sin(this.nowSec * 26) > 0.55;
+      if (!blink) {
+        ctx.fillStyle = '#4a2b3e';
+        ctx.beginPath();
+        ctx.arc(-r * 0.3, -r * 0.05, r * 0.11, 0, Math.PI * 2);
+        ctx.arc(r * 0.3, -r * 0.05, r * 0.11, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#4a2b3e';
+        ctx.lineWidth = Math.max(2, r * 0.09);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(0, r * 0.02, r * 0.24, 0.2, Math.PI - 0.2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,120,170,0.5)';
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.46, r * 0.18, r * 0.16, r * 0.09, 0, 0, Math.PI * 2);
+        ctx.ellipse(r * 0.46, r * 0.18, r * 0.16, r * 0.09, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
-    // shield ring (shop upgrade, one use per run)
+    // shield ring
     if (owned.shield && !this.shieldUsed) {
       ctx.strokeStyle = `rgba(255,255,255,${0.5 + 0.4 * Math.sin(this.nowSec * 6)})`;
       ctx.lineWidth = 3;
@@ -1016,6 +1310,15 @@ class GameplayScreen extends BaseScreen {
     }
 
     ctx.restore();
+  }
+
+  drawFeverOverlay() {
+    if (this.feverPulse <= 0.01) return;
+    const ctx = this.ctx;
+    const pulse = 0.5 + 0.5 * Math.sin(this.nowSec * 9);
+    const alpha = this.feverPulse * (0.06 + 0.05 * pulse);
+    ctx.fillStyle = `rgba(255,158,216,${alpha.toFixed(3)})`;
+    ctx.fillRect(0, 0, this.cssW, this.cssH);
   }
 
   drawFloaters() {
@@ -1062,7 +1365,6 @@ class GameplayScreen extends BaseScreen {
     ctx.textBaseline = 'middle';
     ctx.fillText(text, cx, cy);
 
-    // color order dots
     const palette = this.game.config.game.palette;
     const dotR = 7;
     const total = palette.length * (dotR * 2 + 6) - 6;

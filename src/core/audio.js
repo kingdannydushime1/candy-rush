@@ -11,10 +11,68 @@ class AudioEngine {
     this.master = null;
     this.settings = { sound: true };
     this.platformMuted = false;
+    this.musicEl = null;
+    this.musicTrack = null;
+    this.musicBaseRate = 1;
+    this.musicWanted = false;
     const saved = game.storage.get('settings', null);
     if (saved) Object.assign(this.settings, saved);
     window.addEventListener('pointerdown', () => this.unlock(), { once: true });
     window.addEventListener('keydown', () => this.unlock(), { once: true });
+  }
+
+  /* ----- background music (CC0 loops, one per world) ----- */
+
+  playMusic(path) {
+    this.musicWanted = !!path;
+    this.musicTrack = path || null;
+    if (!path || !this.settings.sound || this.platformMuted) {
+      this._pauseMusicEl();
+      return;
+    }
+    if (this.musicEl && this.musicEl.src.indexOf(path) !== -1) {
+      // already on this track : just make sure it plays
+      this._resumeMusicEl();
+      return;
+    }
+    this._pauseMusicEl();
+    try {
+      const audio = new Audio();
+      audio.src = path;
+      audio.loop = true;
+      audio.volume = 0.32;
+      audio.preload = 'auto';
+      audio.playbackRate = this.musicBaseRate;
+      const start = () => {
+        audio.play().catch(() => { /* autoplay blocked until gesture */ });
+        audio.removeEventListener('canplaythrough', start);
+      };
+      audio.addEventListener('canplaythrough', start);
+      this.musicEl = audio;
+    } catch (e) { /* noop */ }
+  }
+
+  stopMusic() {
+    this.musicWanted = false;
+    this.musicTrack = null;
+    this._pauseMusicEl();
+  }
+
+  setMusicRate(rate) {
+    this.musicBaseRate = rate;
+    if (this.musicEl) this.musicEl.playbackRate = rate;
+  }
+
+  _pauseMusicEl() {
+    if (this.musicEl) {
+      try { this.musicEl.pause(); } catch (e) { /* noop */ }
+    }
+  }
+
+  _resumeMusicEl() {
+    if (this.musicEl && this.musicWanted && this.settings.sound && !this.platformMuted) {
+      try { this.musicEl.play().catch(() => {}); } catch (e) { /* noop */ }
+    }
   }
 
   ensure() {
@@ -33,6 +91,8 @@ class AudioEngine {
   unlock() {
     if (!this.ensure()) return;
     if (this.ctx.state === 'suspended') this.ctx.resume();
+    // first user gesture : start the background music if one is queued
+    this._resumeMusicEl();
   }
 
   /* Called by the platform when audio is disabled/enabled */
@@ -41,12 +101,19 @@ class AudioEngine {
     if (this.ctx && this.master) {
       this.master.gain.linearRampToValueAtTime(enabled ? 0.8 : 0.0001, this.ctx.currentTime + 0.05);
     }
+    if (enabled) this._resumeMusicEl();
+    else this._pauseMusicEl();
   }
 
   /* Called when the user toggles sound in the UI */
   toggleSound() {
     this.settings.sound = !this.settings.sound;
     this.game.storage.set('settings', this.settings);
+    if (this.settings.sound) {
+      if (this.musicWanted) this._resumeMusicEl();
+    } else {
+      this._pauseMusicEl();
+    }
     return this.settings.sound;
   }
 

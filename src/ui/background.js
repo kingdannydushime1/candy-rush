@@ -7,14 +7,19 @@
    ============================================================ */
 
 const BG = {
-  /* Returns a <div class="bg-scene"> with gradient + layers */
-  build(kind) {
+  DEFAULT_COLORS: ['#ffe3f1', '#fff3e0', '#e6f6ff', '#eaf9f0'],
+
+  /* Returns a <div class="bg-scene"> with gradient + layers.
+     colors = [g1,g2,g3,g4] pastel stops (world theme). */
+  build(kind, colors) {
     const scene = document.createElement('div');
     scene.className = `bg-scene bg-${kind}`;
 
-    // Pastel gradient base (pure CSS — adapts to any aspect ratio)
+    // World-themed pastel gradient (pure CSS — adapts to any aspect)
+    const c = colors && colors.length === 4 ? colors : BG.DEFAULT_COLORS;
     const gradient = document.createElement('div');
     gradient.className = 'bg-gradient';
+    gradient.style.background = `linear-gradient(180deg, ${c[0]} 0%, ${c[1]} 32%, ${c[2]} 66%, ${c[3]} 100%)`;
     scene.appendChild(gradient);
 
     // Soft floating blobs (CSS radial gradients)
