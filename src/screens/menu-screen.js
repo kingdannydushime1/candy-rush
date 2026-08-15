@@ -92,6 +92,7 @@ class MenuScreen extends BaseScreen {
       <button type="button" class="btn btn-daily" aria-label="Daily reward">
         <span class="daily-gift">🎁</span>
         <span class="daily-text">${LANG.t('menu.daily')}</span>
+        <span class="btn-video-icon daily-video"></span>
         <span class="daily-claim">${LANG.t('menu.dailyClaim')}</span>
       </button>
     `;
@@ -115,15 +116,28 @@ class MenuScreen extends BaseScreen {
   }
 
   claimDaily(btn) {
-    this.game.audio.revive();
+    this.game.audio.click();
+    if (btn) btn.disabled = true;
     const reward = 50;
-    this.game.storage.set('coins', this.game.storage.get('coins', 0) + reward);
-    this.game.storage.set('daily', { date: new Date().toDateString() });
-    if (btn) {
-      btn.disabled = true;
-      btn.classList.add('claimed');
-      const text = btn.querySelector('.daily-text');
-      if (text) text.textContent = `${LANG.t('menu.dailyDone')} +${reward} ${LANG.t('shop.coins')}`;
+    const grant = () => {
+      this.game.audio.revive();
+      this.game.storage.set('coins', this.game.storage.get('coins', 0) + reward);
+      this.game.storage.set('daily', { date: new Date().toDateString() });
+      if (btn) {
+        btn.classList.add('claimed');
+        const text = btn.querySelector('.daily-text');
+        if (text) text.textContent = `${LANG.t('menu.dailyDone')} +${reward} ${LANG.t('shop.coins')}`;
+      }
+    };
+    // the daily reward is earned by watching a rewarded ad ; on the web
+    // demo (no SDK) it is granted instantly so the feature still works
+    if (Bridge.advertisement.isRewardedSupported()) {
+      Bridge.advertisement.showRewarded('daily').then((rewarded) => {
+        if (rewarded) grant();
+        else if (btn) btn.disabled = false;
+      });
+    } else {
+      setTimeout(grant, 250);
     }
   }
 

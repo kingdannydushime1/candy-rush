@@ -10,7 +10,9 @@
     "rewarded": {
       "placements": [
         { "id": "revive" },
-        { "id": "bonus" }
+        { "id": "bonus" },
+        { "id": "daily" },
+        { "id": "shop_unlock" }
       ]
     }
   },

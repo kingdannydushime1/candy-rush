@@ -32,9 +32,9 @@ class VictoryScreen extends BaseScreen {
     children.push(this.scoreEl(score));
     children.push(this.coinsEl(coins));
     children.push(this.buttonEl(LANG.t('victory.next'), 'primary', () => this.nextLevel()));
-    if (Bridge.advertisement.isRewardedSupported()) {
-      children.push(this.buttonEl(`${this.videoIcon()} ${LANG.t('victory.bonus')}`, 'secondary', (event, btn) => this.bonus(btn)));
-    }
+    // BONUS always visible (like REVIVE) : rewarded ad on Playgama,
+    // instant free double on the web demo — never hidden without SDK
+    children.push(this.buttonEl(`${this.videoIcon()} ${LANG.t('victory.bonus')}`, 'secondary', (event, btn) => this.bonus(btn)));
     children.push(this.buttonEl(LANG.t('levels.home'), 'back', () => this.home()));
     panel.add(...children);
     this.el.appendChild(panel.el);
@@ -108,17 +108,22 @@ class VictoryScreen extends BaseScreen {
   bonus(btn) {
     this.game.audio.click();
     if (btn && btn.el) btn.el.disabled = true;
-    Bridge.advertisement.showRewarded('bonus').then((rewarded) => {
-      if (rewarded) {
-        const bonusCoins = this.coins * 2;
-        this.game.storage.set('coins', this.game.storage.get('coins', 0) + bonusCoins);
-        this.game.audio.revive();
-        this.showBonusToast(`+${bonusCoins}`);
-        if (btn && btn.el) btn.el.disabled = false;
-      } else if (btn && btn.el) {
-        btn.el.disabled = false;
-      }
-    });
+    const grant = () => {
+      const bonusCoins = this.coins * 2;
+      this.game.storage.set('coins', this.game.storage.get('coins', 0) + bonusCoins);
+      this.game.audio.revive();
+      this.showBonusToast(`+${bonusCoins}`);
+      if (btn && btn.el) btn.el.disabled = false;
+    };
+    if (Bridge.advertisement.isRewardedSupported()) {
+      Bridge.advertisement.showRewarded('bonus').then((rewarded) => {
+        if (rewarded) grant();
+        else if (btn && btn.el) btn.el.disabled = false;
+      });
+    } else {
+      // No SDK (GitHub Pages / local demo) : instant free double
+      setTimeout(grant, 250);
+    }
   }
 
   showBonusToast(text) {

@@ -188,7 +188,8 @@ class GameplayScreen extends BaseScreen {
       </div>
     `;
 
-    // Bottom control bar : ◀ move / 4 color buttons / move ▶
+    // Bottom control bar : ◀ ▶ on their own row ABOVE the 4 color
+    // buttons (bigger, more spaced = more comfortable on a phone)
     this.controls = document.createElement('div');
     this.controls.className = 'game-controls';
     const palette = this.game.config.game.palette;
@@ -196,9 +197,11 @@ class GameplayScreen extends BaseScreen {
       `<button type="button" class="ctl-btn ctl-color" data-color="${i}" aria-label="${c.id}" style="background:${ctlGrad(c)};--glow:${c.glow}"><span class="ctl-dot"></span></button>`
     ).join('');
     this.controls.innerHTML = `
-      <button type="button" class="ctl-btn ctl-arrow ctl-left" aria-label="Move left">${CTL_ICONS.left}</button>
-      ${colorButtons}
-      <button type="button" class="ctl-btn ctl-arrow ctl-right" aria-label="Move right">${CTL_ICONS.right}</button>
+      <div class="ctl-row ctl-row-move">
+        <button type="button" class="ctl-btn ctl-arrow ctl-left" aria-label="Move left">${CTL_ICONS.left}</button>
+        <button type="button" class="ctl-btn ctl-arrow ctl-right" aria-label="Move right">${CTL_ICONS.right}</button>
+      </div>
+      <div class="ctl-row ctl-row-colors">${colorButtons}</div>
     `;
 
     this.el.appendChild(this.canvas);
@@ -220,11 +223,10 @@ class GameplayScreen extends BaseScreen {
 
     this.loadImages();
 
-    // interactions
-    this.canvas.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      this.switchColor();
-    });
+    // interactions — NO canvas tap-to-cycle : the color must only change
+    // via the 4 dedicated buttons (an accidental tap used to switch
+    // pink → mint without the player noticing)
+    this.canvas.addEventListener('pointerdown', (e) => e.preventDefault());
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
     // Hold-to-move arrows (pointer events, multi-touch safe)
@@ -263,8 +265,7 @@ class GameplayScreen extends BaseScreen {
     });
     this.pauseMenu.querySelector('.btn-quit').addEventListener('click', () => {
       this.game.audio.click();
-      this.paused = false;
-      this.pauseMenu.classList.add('hidden');
+      this.stopRun();
       Bridge.platform.sendMessage('level_paused');
       this.game.show('menu');
     });
@@ -339,10 +340,12 @@ class GameplayScreen extends BaseScreen {
     Bridge.platform.sendMessage('level_started');
   }
 
-  exit() {
+  exit(next) {
     window.removeEventListener('resize', this.onResize);
     cancelAnimationFrame(this.frameId);
     this.frameId = null;
+    // leaving to the menu : stop the world music so nothing keeps playing
+    if (!next || next.name === 'menu') this.game.audio.stopMusic();
   }
 
   restartRun() {
@@ -355,6 +358,19 @@ class GameplayScreen extends BaseScreen {
     this.pauseMenu.classList.add('hidden');
     this.refreshHud();
     this.lastTime = 0;
+  }
+
+  /* Fully stop the run (RAF + music) when leaving to the menu :
+     the game must not keep playing in the background. */
+  stopRun() {
+    this.paused = true;
+    this.state = 'idle';
+    this.moveDir = 0;
+    this.pauseMenu.classList.add('hidden');
+    this.game.audio.stopMusic();
+    cancelAnimationFrame(this.frameId);
+    this.frameId = null;
+    this.game.audio.setMusicRate(1);
   }
 
   togglePause() {
