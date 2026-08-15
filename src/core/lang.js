@@ -1,6 +1,9 @@
 /* ============================================================
    LOCALIZATION — required by Playgama : the source language
-   must come from bridge.platform.language (or the browser).
+   must come from bridge.platform.language.
+   Default is ENGLISH. The language is switched to the player's
+   own language ONLY when the real Playgama SDK is present
+   (so a plain browser / GitHub Pages always shows English).
    ============================================================ */
 
 const LANG = (() => {
@@ -14,7 +17,7 @@ const LANG = (() => {
       'menu.tapStart': 'TAP TO START',
       'sound.on': '🔊',
       'sound.off': '🔇',
-      'gameplay.hint': 'TAP TO SWITCH COLOR!',
+      'gameplay.hint': 'MOVE & MATCH THE COLORS!',
       'gameplay.perfect': 'PERFECT!',
       'gameplay.shield': 'SHIELD!',
       'loading.text': 'LOADING',
@@ -49,7 +52,7 @@ const LANG = (() => {
       'menu.tapStart': 'TAPE POUR JOUER',
       'sound.on': '🔊',
       'sound.off': '🔇',
-      'gameplay.hint': 'TAPE POUR CHANGER DE COULEUR !',
+      'gameplay.hint': 'DÉPLACE-TOI ET ASSOCIE LES COULEURS !',
       'gameplay.perfect': 'PARFAIT !',
       'gameplay.shield': 'BOUCLIER !',
       'loading.text': 'CHARGEMENT',
@@ -82,7 +85,7 @@ const LANG = (() => {
       'menu.shop': 'TIENDA',
       'menu.best': 'RÉCORD',
       'menu.tapStart': 'TOCA PARA JUGAR',
-      'gameplay.hint': '¡TOCA PARA CAMBIAR DE COLOR!',
+      'gameplay.hint': '¡MUÉVETE Y COINCIDE LOS COLORES!',
       'gameplay.perfect': '¡PERFECTO!',
       'gameplay.shield': '¡ESCUDO!',
       'loading.text': 'CARGANDO',
@@ -115,7 +118,7 @@ const LANG = (() => {
       'menu.shop': 'LOJA',
       'menu.best': 'RECORDE',
       'menu.tapStart': 'TOQUE PARA JOGAR',
-      'gameplay.hint': 'TOQUE PARA MUDAR DE COR!',
+      'gameplay.hint': 'MOVA-SE E COMBINE AS CORES!',
       'gameplay.perfect': 'PERFEITO!',
       'gameplay.shield': 'ESCUDO!',
       'loading.text': 'CARREGANDO',
@@ -148,7 +151,7 @@ const LANG = (() => {
       'menu.shop': 'SHOP',
       'menu.best': 'REKORD',
       'menu.tapStart': 'TIPPEN ZUM STARTEN',
-      'gameplay.hint': 'TIPPEN ZUM FARBWECHSEL!',
+      'gameplay.hint': 'BEWEGE DICH UND TREFFE DIE FARBEN!',
       'gameplay.perfect': 'PERFEKT!',
       'gameplay.shield': 'SCHILD!',
       'loading.text': 'LÄDT',
@@ -181,8 +184,12 @@ const LANG = (() => {
   function detect() {
     let lang = 'en';
     try {
-      const raw = Bridge.platform.language;
-      if (SUPPORTED.indexOf(raw) !== -1) lang = raw;
+      // Only the real Playgama SDK decides the language.
+      // Without it the game stays in English (default).
+      if (Bridge.available) {
+        const raw = Bridge.platform.language;
+        if (SUPPORTED.indexOf(raw) !== -1) lang = raw;
+      }
     } catch (e) { /* noop */ }
     return lang;
   }

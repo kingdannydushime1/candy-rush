@@ -1,8 +1,8 @@
 # 🍭 Candy Rush
 
-**Candy Rush** is a hyper-casual one-tap color game — a *Color Rush* mechanic wrapped in a cute candy world.
+**Candy Rush** is a hyper-casual color game — a *Color Rush* mechanic wrapped in a cute candy world.
 
-Tap to cycle the ball's color (**pink → mint → sky → lemon**), pass through the candy gates that match your color, chain combos, trigger **PERFECT** near-misses and collect sweets. 3 hearts, endless difficulty ramp, best score chasing, and a sweet shop to spend your candies on.
+Move the ball **left / right** to collect sweets and pick the exact color with **4 round color buttons** (**pink → mint → sky → lemon**), pass through the candy gates that match your color, chain combos, trigger **PERFECT** near-misses. 3 hearts, endless difficulty ramp, best score chasing, and a sweet shop to spend your candies on.
 
 Built in **100% vanilla JavaScript** (no framework, no build step) on a custom engine — instant loading, works on every screen size (portrait & landscape).
 
@@ -10,12 +10,13 @@ Built in **100% vanilla JavaScript** (no framework, no build step) on a custom e
 
 ## 🕹️ How to play
 
-- **Tap** (or `Space` / `↑`) to switch the ball's color
+- **◀ / ▶** (bottom bar, or `←`/`→` keys): move the ball left / right to **collect sweets** (donuts, ice-creams, cookies…)
+- **4 round color buttons** (or `1`–`4` keys): one tap = the exact color, no more cycling
 - Pass gates of the **same color** : mismatch costs a heart
 - Switch color **at the last moment** for a PERFECT bonus
-- Collect sweets between gates (candies → shop currency)
 - Chain combos for a ×10 multiplier and chase the best score
-- Shop upgrades: **Heart +1**, **Double Points**, **Candy Magnet**, **Sugar Shield**
+- On game over: **REVIVE** (watch an ad to come back exactly where you died) or **RETRY**
+- Shop upgrades (with graphic icons): **Heart +1**, **Double Points**, **Candy Magnet**, **Sugar Shield**
 
 ## 🚀 Run locally
 

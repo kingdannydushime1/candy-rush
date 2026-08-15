@@ -2,10 +2,25 @@
    GAMEPLAY — CANDY RUSH engine
    ------------------------------------------------------------
    The cute ball runs UP through candy gates that scroll down.
-   Tap to cycle the ball color (pink → mint → sky → lemon).
+   Controls (bottom bar):
+     ◀  hold to move the ball LEFT   ▶  hold to move RIGHT
+     4 round color buttons : one tap = direct color switch
+     (pink → mint → sky → lemon). Tapping the playfield still
+     cycles the color (desktop convenience).
    Match the gate color to pass : mismatch costs a heart.
-   Collect sweets, chain combos, trigger PERFECT near-misses.
+   Move sideways to collect sweets, chain combos, trigger
+   PERFECT near-misses.
    ============================================================ */
+
+/* Round color button gradient + arrow icons (no external assets). */
+function ctlGrad(color) {
+  return `radial-gradient(circle at 32% 28%, rgba(255,255,255,0.75), ${color.body} 52%, ${color.edge} 100%)`;
+}
+
+const CTL_ICONS = {
+  left: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4 7 12l8 8" fill="none" stroke="#7a4a66" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  right: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4l8 8-8 8" fill="none" stroke="#7a4a66" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
 
 class GameplayScreen extends BaseScreen {
   constructor(game) {
@@ -27,6 +42,9 @@ class GameplayScreen extends BaseScreen {
     this.gatesPassed = 0;
     this.speed = cfg.baseSpeed;
     this.ballColor = 0;
+    this.ballX = null;   // horizontal position (set to center on resize)
+    this.ballVx = 0;
+    this.moveDir = 0;    // -1 left / 0 idle / +1 right
     this.lastTapTime = -999;
     this.tapCount = 0;
     this.invulnUntil = 0;
@@ -134,9 +152,23 @@ class GameplayScreen extends BaseScreen {
       </div>
     `;
 
+    // Bottom control bar : ◀ move / 4 color buttons / move ▶
+    this.controls = document.createElement('div');
+    this.controls.className = 'game-controls';
+    const palette = this.game.config.game.palette;
+    const colorButtons = palette.map((c, i) =>
+      `<button type="button" class="ctl-btn ctl-color" data-color="${i}" aria-label="${c.id}" style="background:${ctlGrad(c)};--glow:${c.glow}"><span class="ctl-dot"></span></button>`
+    ).join('');
+    this.controls.innerHTML = `
+      <button type="button" class="ctl-btn ctl-arrow ctl-left" aria-label="Move left">${CTL_ICONS.left}</button>
+      ${colorButtons}
+      <button type="button" class="ctl-btn ctl-arrow ctl-right" aria-label="Move right">${CTL_ICONS.right}</button>
+    `;
+
     this.el.appendChild(this.canvas);
     this.el.appendChild(this.hud);
     this.el.appendChild(this.pauseMenu);
+    this.el.appendChild(this.controls);
 
     this.loadImages();
 
@@ -146,6 +178,29 @@ class GameplayScreen extends BaseScreen {
       this.switchColor();
     });
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Hold-to-move arrows (pointer events, multi-touch safe)
+    const holdArrow = (btn, dir) => {
+      const press = (e) => {
+        e.preventDefault();
+        this.moveDir = dir;
+      };
+      const release = () => {
+        if (this.moveDir === dir) this.moveDir = 0;
+      };
+      btn.addEventListener('pointerdown', press);
+      btn.addEventListener('pointerup', release);
+      btn.addEventListener('pointercancel', release);
+      btn.addEventListener('pointerleave', release);
+      btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    };
+    holdArrow(this.controls.querySelector('.ctl-left'), -1);
+    holdArrow(this.controls.querySelector('.ctl-right'), 1);
+
+    // One tap = the exact color (no more cycling to find it)
+    this.controls.querySelectorAll('.ctl-color').forEach((btn) => {
+      btn.addEventListener('click', () => this.setColor(parseInt(btn.dataset.color, 10)));
+    });
     this.hud.querySelector('.btn-pause').addEventListener('click', () => {
       this.game.audio.click();
       this.togglePause();
@@ -169,13 +224,22 @@ class GameplayScreen extends BaseScreen {
     this.onKeyDown((event) => {
       if (event.code === 'Escape') {
         this.togglePause();
+      } else if (event.code === 'ArrowLeft') {
+        this.moveDir = -1;
+      } else if (event.code === 'ArrowRight') {
+        this.moveDir = 1;
       } else if (event.code === 'Space' || event.code === 'ArrowUp' || event.code === 'Enter') {
         this.switchColor();
+      } else if (event.code >= 'Digit1' && event.code <= 'Digit4') {
+        this.setColor(parseInt(event.code.slice(-1), 10) - 1);
       }
     });
+    this.cleanups.push(this.game.input.on('keyup', (event) => {
+      if (event.code === 'ArrowLeft' && this.moveDir === -1) this.moveDir = 0;
+      if (event.code === 'ArrowRight' && this.moveDir === 1) this.moveDir = 0;
+    }));
 
-    this.updateScoreDisplay();
-    this.updateHeartsDisplay();
+    this.updateColorButtons();
   }
 
   loadImages() {
@@ -214,6 +278,7 @@ class GameplayScreen extends BaseScreen {
       this.state = 'ready';
       this.readyTimer = 0.7;
     }
+    this.refreshHud();
     this.paused = false;
     this.pauseMenu.classList.add('hidden');
     this.resize();
@@ -237,6 +302,7 @@ class GameplayScreen extends BaseScreen {
     this.readyTimer = 0.7;
     this.paused = false;
     this.pauseMenu.classList.add('hidden');
+    this.refreshHud();
     this.lastTime = 0;
   }
 
@@ -275,10 +341,15 @@ class GameplayScreen extends BaseScreen {
       w: pfW,
       h,
       x: (w - pfW) / 2,
-      ballY: h * 0.62,
+      ballY: h < w ? h * 0.56 : h * 0.62, // a bit higher in landscape (control bar)
       r: Math.max(15, Math.min(30, pfW * 0.075)),
       margin: Math.max(22, pfW * 0.05)
     };
+    // keep the ball inside the playfield after a resize
+    const minX = this.pf.x + this.pf.margin + this.pf.r;
+    const maxX = this.pf.x + this.pf.w - this.pf.margin - this.pf.r;
+    if (this.ballX == null) this.ballX = this.pf.x + this.pf.w / 2;
+    this.ballX = Math.max(minX, Math.min(maxX, this.ballX));
   }
 
   /* ----- main loop ----- */
@@ -312,6 +383,13 @@ class GameplayScreen extends BaseScreen {
         this.game.config.game.maxSpeed,
         this.game.config.game.baseSpeed + this.gatesPassed * this.game.config.game.speedPerGate
       );
+      // horizontal movement (hold ◀ / ▶, keyboard arrows)
+      const moveMax = Math.min(620, 340 + this.speed * 0.18);
+      this.ballVx += (this.moveDir * moveMax - this.ballVx) * Math.min(1, 9 * wdt);
+      this.ballX += this.ballVx * wdt;
+      const minX = this.pf.x + this.pf.margin + this.pf.r;
+      const maxX = this.pf.x + this.pf.w - this.pf.margin - this.pf.r;
+      this.ballX = Math.max(minX, Math.min(maxX, this.ballX));
       this.spawnGates();
       this.moveWorld(wdt);
       this.processGates();
@@ -483,7 +561,7 @@ class GameplayScreen extends BaseScreen {
   updateSweets(wdt) {
     const owned = this.game.storage.get('owned', {});
     const magnet = !!owned.magnet;
-    const bx = this.pf.x + this.pf.w / 2;
+    const bx = this.ballX;
     const by = this.pf.ballY;
     const reach = 150;
     for (const sweet of this.sweets) {
@@ -524,7 +602,7 @@ class GameplayScreen extends BaseScreen {
     this.deathSnapshot = this.captureSnapshot();
     this.shake = 0.8;
     this.flash = 0.9;
-    this.burst(this.pf.x + this.pf.w / 2, this.pf.ballY, '#ffffff', 26);
+    this.burst(this.ballX, this.pf.ballY, '#ffffff', 26);
     this.game.audio.gameOver();
     Bridge.platform.sendMessage('level_failed');
   }
@@ -565,6 +643,36 @@ class GameplayScreen extends BaseScreen {
     this.squashX = 1.22;
     this.squashY = 0.78;
     this.game.audio.switchColor();
+    this.updateColorButtons();
+  }
+
+  /* Direct color selection from the round buttons (1 tap = exact color). */
+  setColor(index) {
+    if (this.state !== 'running' || this.paused) return;
+    if (index < 0 || index >= this.game.config.game.palette.length) return;
+    if (index === this.ballColor) return;
+    this.ballColor = index;
+    this.lastTapTime = this.nowSec;
+    this.squashX = 1.22;
+    this.squashY = 0.78;
+    this.game.audio.switchColor();
+    this.updateColorButtons();
+  }
+
+  updateColorButtons() {
+    if (!this.controls) return;
+    this.controls.querySelectorAll('.ctl-color').forEach((btn) => {
+      btn.classList.toggle('active', parseInt(btn.dataset.color, 10) === this.ballColor);
+    });
+  }
+
+  /* Re-render HUD state (hearts, score, combo, color buttons). Called
+     after every reset so a fresh run always shows FULL hearts. */
+  refreshHud() {
+    this.updateScoreDisplay();
+    this.updateHeartsDisplay();
+    this.updateComboPill();
+    this.updateColorButtons();
   }
 
   /* ----- fx ----- */
@@ -850,7 +958,7 @@ class GameplayScreen extends BaseScreen {
     const cfg = this.game.config.game;
     const col = cfg.palette[this.ballColor];
     const r = this.pf.r;
-    const bx = this.pf.x + this.pf.w / 2;
+    const bx = this.ballX;
     const by = this.pf.ballY;
     const owned = this.game.storage.get('owned', {});
 
@@ -930,7 +1038,7 @@ class GameplayScreen extends BaseScreen {
   drawTutorial() {
     if (this.tutorialDone || this.state !== 'running') return;
     const ctx = this.ctx;
-    const cx = this.pf.x + this.pf.w / 2;
+    const cx = this.ballX;
     const cy = this.pf.ballY - this.pf.r - 46 + Math.sin(this.nowSec * 4) * 4;
     const text = LANG.t('gameplay.hint');
     ctx.font = `18px "Kenney Mini Square","Segoe UI",Arial,sans-serif`;

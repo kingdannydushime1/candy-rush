@@ -22,10 +22,11 @@ class GameOverScreen extends BaseScreen {
     if (coins > 0) children.push(this.coinsEl(coins));
     children.push(this.bestEl(best));
     children.push(this.buttonEl(LANG.t('gameover.retry'), 'primary', () => this.retry()));
+    // REVIVE replaces the MENU button : the video icon shows that
+    // watching an ad brings you right back where you died.
     if (Bridge.advertisement.isRewardedSupported()) {
-      children.push(this.buttonEl(LANG.t('gameover.revive'), 'secondary', (event, btn) => this.revive(btn)));
+      children.push(this.buttonEl(`${this.videoIcon()} ${LANG.t('gameover.revive')}`, 'secondary', (event, btn) => this.revive(btn)));
     }
-    children.push(this.buttonEl(LANG.t('gameover.menu'), 'back', () => this.menu()));
     panel.add(...children);
     this.el.appendChild(panel.el);
 
@@ -76,6 +77,10 @@ class GameOverScreen extends BaseScreen {
 
   buttonEl(label, variant, onClick) {
     return new Button({ label, variant, onClick });
+  }
+
+  videoIcon() {
+    return '<svg class="btn-video-icon" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="29" fill="#fff" stroke="#f45baf" stroke-width="5"/><path d="M26 20.5 45 32 26 43.5z" fill="#f45baf"/></svg>';
   }
 
   retry() {

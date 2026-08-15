@@ -50,6 +50,7 @@ class ShopScreen extends BaseScreen {
       const row = document.createElement('div');
       row.className = `shop-item ${owned ? 'owned' : ''}`;
       row.innerHTML = `
+        <span class="shop-item-icon">${this.itemIcon(item.id)}</span>
         <span class="shop-item-name">${LANG.t(item.nameKey)}</span>
         <span class="shop-item-price"><img src="assets/ui/c.png" alt="" draggable="false">${item.price.toLocaleString()}</span>
       `;
@@ -76,6 +77,19 @@ class ShopScreen extends BaseScreen {
     });
   }
 
+  /* Graphic illustrations instead of plain words : real heart / star
+     assets from the UI pack + candy-style SVG icons (magnet, shield). */
+  itemIcon(id) {
+    const map = {
+      heart_plus: 'assets/ui/l1.png',
+      double_points: 'assets/ui/s1.png',
+      magnet: 'assets/ui/icon-magnet.svg',
+      shield: 'assets/ui/icon-shield.svg'
+    };
+    const src = map[id];
+    return src ? `<img src="${src}" alt="" draggable="false">` : '';
+  }
+
   getCoins() {
     return this.game.storage.get('coins', 0);
   }
@@ -98,7 +112,7 @@ class ShopScreen extends BaseScreen {
       button.el.disabled = true;
       button.el.querySelector('.btn-label').textContent = LANG.t('shop.owned');
       this.refreshCoins();
-      this.showToast(`${item.name} ✔`);
+      this.showToast(`${LANG.t(item.nameKey)} ✔`);
     } else {
       this.game.audio.hit();
       this.showToast(LANG.t('shop.notEnough'));

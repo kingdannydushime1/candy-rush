@@ -22,10 +22,12 @@ class MenuScreen extends BaseScreen {
           ${this.playButton()}
           ${config.features.shop ? this.shopButton() : ''}
         </div>
-        <div class="menu-sound">${this.soundButton()}</div>
       </div>
     `;
     this.el.insertBefore(BG.build('menu'), this.el.firstChild);
+    // Sound toggle lives OUTSIDE the centered column, anchored to the
+    // top-right corner of the screen (never overlaps the title).
+    this.el.insertAdjacentHTML('beforeend', `<div class="menu-sound">${this.soundButton()}</div>`);
 
     this.el.querySelector('.btn-play').addEventListener('click', () => this.startGame());
     const shopButton = this.el.querySelector('.btn-shop');

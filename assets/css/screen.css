@@ -522,6 +522,74 @@ body {
   50% { transform: scale(1.07); }
 }
 
+/* Bottom control bar : ◀ move / 4 color buttons / move ▶ */
+.game-controls {
+  position: absolute;
+  bottom: calc(clamp(10px, 2.4vw, 18px) + env(safe-area-inset-bottom));
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px, 2.2vw, 16px);
+  padding: 0 clamp(6px, 2vw, 16px);
+  z-index: 4;
+  pointer-events: none;
+}
+
+.game-controls .ctl-btn {
+  pointer-events: auto;
+}
+
+.ctl-btn {
+  width: clamp(44px, 13vw, 78px);
+  height: clamp(44px, 13vw, 78px);
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 5px 0 rgba(74, 43, 62, 0.22), 0 10px 22px rgba(74, 43, 62, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+}
+
+.ctl-btn:active {
+  transform: scale(0.9);
+}
+
+.ctl-arrow {
+  background: linear-gradient(180deg, #ffffff 0%, #ffe9f2 60%, #ffd6ea 100%);
+}
+
+.ctl-arrow svg {
+  width: 52%;
+  height: 52%;
+  filter: drop-shadow(0 2px 2px rgba(255, 255, 255, 0.8));
+}
+
+.ctl-color .ctl-dot {
+  width: 62%;
+  height: 62%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 42%);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+}
+
+.ctl-color.active {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.95), 0 0 24px 6px var(--glow, rgba(255, 255, 255, 0.9)), 0 6px 0 rgba(74, 43, 62, 0.22);
+  animation: ctl-pop 0.55s ease-in-out infinite alternate;
+}
+
+@keyframes ctl-pop {
+  from { transform: scale(1.06); }
+  to { transform: scale(1.14); }
+}
+
 /* Pause overlay (in-game) */
 .pause-overlay {
   position: absolute;
@@ -613,6 +681,15 @@ body {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
+/* Video icon inside the REVIVE button (watch an ad to come back) */
+.btn-video-icon {
+  width: 1.3em;
+  height: 1.3em;
+  margin-right: 8px;
+  vertical-align: -0.28em;
+  flex-shrink: 0;
+}
+
 /* ============================================================
    SHOP
    ============================================================ */
@@ -654,6 +731,25 @@ body {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.4);
   border: 2px solid rgba(255, 255, 255, 0.65);
+}
+
+.shop-item-icon {
+  width: clamp(30px, 7vw, 46px);
+  height: clamp(30px, 7vw, 46px);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75);
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 6px rgba(74, 43, 62, 0.15);
+}
+
+.shop-item-icon img {
+  width: 74%;
+  height: 74%;
+  object-fit: contain;
 }
 
 .shop-item-name {
@@ -779,6 +875,17 @@ body {
   .gameover-screen .panel,
   .shop-screen .panel {
     width: min(72vw, 420px);
+  }
+
+  .ctl-btn {
+    width: clamp(42px, 9vh, 56px);
+    height: clamp(42px, 9vh, 56px);
+    border-width: 2px;
+  }
+
+  .game-controls {
+    bottom: calc(6px + env(safe-area-inset-bottom));
+    gap: clamp(6px, 1.6vh, 10px);
   }
 
   .shop-list {
