@@ -19,7 +19,7 @@ class ScreenManager {
     }
     const previous = this.current;
     if (previous && previous !== next) previous.exit(next);
-    next.build();
+    next.build(options);
     this.container.appendChild(next.el);
     if (typeof UI !== 'undefined') UI.setupLoaded(next.el);
     next.enter(previous, options);

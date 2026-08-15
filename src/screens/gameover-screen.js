@@ -4,24 +4,41 @@ class GameOverScreen extends BaseScreen {
   }
 
   build(options = {}) {
+    const score = options.score || 0;
+    const best = options.best || 0;
+    const stars = options.stars != null ? options.stars : 0;
+    const coins = options.coins || 0;
+    const isNewBest = !!options.isNewBest;
+
     this.el = document.createElement('div');
     this.el.className = 'screen gameover-screen';
-    this.el.style.backgroundImage = `url("${this.game.config.backgrounds.menu}")`;
+    this.el.innerHTML = '';
+    this.el.appendChild(BG.build('menu'));
 
     const panel = new Panel({ image: 'assets/ui/f.png' });
-    const children = [this.titleEl('GAME OVER')];
-    if (options.stars != null) children.push(this.starsEl(options.stars));
-    children.push(
-      this.buttonEl('RETRY', 'primary', () => this.retry()),
-      this.buttonEl('REVIVE', 'secondary', () => this.revive()),
-      this.buttonEl('MENU', 'back', () => this.menu())
-    );
+    const children = [this.titleEl(isNewBest ? LANG.t('gameover.newBest') : LANG.t('gameover.title'), isNewBest)];
+    children.push(this.starsEl(stars));
+    children.push(this.scoreEl(score));
+    if (coins > 0) children.push(this.coinsEl(coins));
+    children.push(this.bestEl(best));
+    children.push(this.buttonEl(LANG.t('gameover.retry'), 'primary', () => this.retry()));
+    if (Bridge.advertisement.isRewardedSupported()) {
+      children.push(this.buttonEl(LANG.t('gameover.revive'), 'secondary', (event, btn) => this.revive(btn)));
+    }
+    children.push(this.buttonEl(LANG.t('gameover.menu'), 'back', () => this.menu()));
     panel.add(...children);
     this.el.appendChild(panel.el);
 
     this.onKeyDown((event) => {
       if (event.code === 'Enter' || event.code === 'Space') this.retry();
     });
+  }
+
+  titleEl(text, isNewBest) {
+    const h = document.createElement('h2');
+    h.className = `modal-title ${isNewBest ? 'title-new-best' : ''}`;
+    h.textContent = text;
+    return h;
   }
 
   starsEl(count) {
@@ -36,11 +53,25 @@ class GameOverScreen extends BaseScreen {
     return row;
   }
 
-  titleEl(text) {
-    const h = document.createElement('h2');
-    h.className = 'modal-title';
-    h.textContent = text;
-    return h;
+  scoreEl(score) {
+    const row = document.createElement('div');
+    row.className = 'modal-score';
+    row.innerHTML = `<img src="assets/ui/c.png" alt="" draggable="false"><span>${score.toLocaleString()}</span>`;
+    return row;
+  }
+
+  coinsEl(coins) {
+    const row = document.createElement('div');
+    row.className = 'modal-coins';
+    row.innerHTML = `<img src="assets/ui/c.png" alt="" draggable="false"><span>+${coins.toLocaleString()}</span>`;
+    return row;
+  }
+
+  bestEl(best) {
+    const div = document.createElement('div');
+    div.className = 'modal-best';
+    div.textContent = `${LANG.t('gameover.best')} ${best.toLocaleString()}`;
+    return div;
   }
 
   buttonEl(label, variant, onClick) {
@@ -52,9 +83,17 @@ class GameOverScreen extends BaseScreen {
     this.game.show(this.game.config.playTarget || 'gameplay');
   }
 
-  revive() {
+  revive(btn) {
     this.game.audio.click();
-    this.game.show(this.game.config.playTarget || 'gameplay');
+    if (btn && btn.el) btn.el.disabled = true;
+    Bridge.advertisement.showRewarded('revive').then((rewarded) => {
+      if (rewarded) {
+        this.game.audio.revive();
+        this.game.show('gameplay', { revive: true });
+      } else if (btn && btn.el) {
+        btn.el.disabled = false;
+      }
+    });
   }
 
   menu() {

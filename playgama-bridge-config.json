@@ -1,0 +1,21 @@
+{
+  "advertisement": {
+    "minimumDelayBetweenInterstitial": 60,
+    "interstitial": {
+      "placements": [
+        { "id": "game_over" }
+      ]
+    },
+    "rewarded": {
+      "placements": [
+        { "id": "revive" }
+      ]
+    }
+  },
+  "leaderboards": [
+    {
+      "id": "candy_rush_best",
+      "isMain": true
+    }
+  ]
+}

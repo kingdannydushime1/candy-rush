@@ -1,6 +1,5 @@
-/* Loading screen — shows a progress bar while the game assets preload.
-   Drives the bar from bar_1 (fill) over bar_2 (track) in assets/ui/.
-   Also reports progress to the Playgama SDK when present (SDK.loadingProgress). */
+/* Loading screen — real preload progress, then reports
+   game_ready to Playgama (required). */
 
 const PACK_IMAGES = [
   'b_1.png', 'b_2.png', 'b_3.png', 'b_4.png', 'b_5.png',
@@ -19,16 +18,16 @@ class LoadingScreen extends BaseScreen {
 
     this.el = document.createElement('div');
     this.el.className = 'screen loading-screen';
-    this.el.style.backgroundImage = `url("${config.backgrounds.menu}")`;
     this.el.innerHTML = `
       <div class="loading-content">
         <h1 class="game-title">${config.title}</h1>
         <div class="loading-bar">
           <div class="loading-fill"></div>
         </div>
-        <div class="loading-text">LOADING 0%</div>
+        <div class="loading-text">${LANG.t('loading.text')} 0%</div>
       </div>
     `;
+    this.el.insertBefore(BG.build('menu'), this.el.firstChild);
 
     this.preload(this.collectAssets());
   }
@@ -36,9 +35,6 @@ class LoadingScreen extends BaseScreen {
   collectAssets() {
     const config = this.game.config;
     const list = PACK_IMAGES.map((name) => `assets/ui/${name}`);
-    Object.values(config.backgrounds || {}).forEach((bg) => {
-      if (bg) list.push(bg);
-    });
     (config.loading && config.loading.assets || []).forEach((src) => list.push(src));
     return list;
   }
@@ -52,10 +48,18 @@ class LoadingScreen extends BaseScreen {
     const setProgress = (pct) => {
       const value = Math.max(0, Math.min(100, pct));
       if (bar) bar.style.width = `${value}%`;
-      if (text) text.textContent = `LOADING ${Math.round(value)}%`;
-      if (typeof SDK !== 'undefined' && SDK.loadingProgress) {
-        try { SDK.loadingProgress(value / 100); } catch (error) { /* noop */ }
-      }
+      if (text) text.textContent = `${Math.round(value)}%`;
+    };
+
+    const finish = () => {
+      // warm up the display font so the first frames are perfect
+      try {
+        if (document.fonts && document.fonts.load) {
+          document.fonts.load('16px "Kenney Mini Square"');
+        }
+      } catch (e) { /* noop */ }
+      Bridge.platform.sendMessage('game_ready');
+      this.game.show(this.game.config.loading.loadTarget || 'menu');
     };
 
     setProgress(0);
@@ -64,9 +68,7 @@ class LoadingScreen extends BaseScreen {
       img.onload = img.onerror = () => {
         loaded += 1;
         setProgress((loaded / total) * 100);
-        if (loaded >= total) {
-          this.game.show(this.game.config.loading.loadTarget || 'menu');
-        }
+        if (loaded >= total) finish();
       };
       img.src = src;
     });
