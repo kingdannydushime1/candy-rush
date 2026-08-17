@@ -73,21 +73,21 @@ class GameOverScreen extends BaseScreen {
   scoreEl(score) {
     const row = document.createElement('div');
     row.className = 'modal-score';
-    row.innerHTML = `<img src="assets/ui/c.png" alt="" draggable="false"><span>${score.toLocaleString()}</span>`;
+    row.innerHTML = `<img src="assets/ui/c.png" alt="" draggable="false"><span>${score.toLocaleString('en-US')}</span>`;
     return row;
   }
 
   coinsEl(coins) {
     const row = document.createElement('div');
     row.className = 'modal-coins';
-    row.innerHTML = `<img src="assets/ui/c.png" alt="" draggable="false"><span>+${coins.toLocaleString()}</span>`;
+    row.innerHTML = `<img src="assets/ui/c.png" alt="" draggable="false"><span>+${coins.toLocaleString('en-US')}</span>`;
     return row;
   }
 
   bestEl(best) {
     const div = document.createElement('div');
     div.className = 'modal-best';
-    div.textContent = `${LANG.t('gameover.best')} ${best.toLocaleString()}`;
+    div.textContent = `${LANG.t('gameover.best')} ${best.toLocaleString('en-US')}`;
     return div;
   }
 

@@ -26,6 +26,20 @@ no attribution required (crediting the author is appreciated but not required).
 | `assets/music/world9.ogg` | Magical Game Loop | nene | CC0 | https://opengameart.org/content/magical-game-loop |
 | `assets/music/world10.ogg` | Starlight City | AdhesiveWombat | CC0 | https://opengameart.org/content/starlight-city |
 
-CC0 1.0 Universal — http://creativecommons.org/publicdomain/zero/1.0/
+## Sound effects (all CC0)
 
-Sound effects are synthesized at runtime with the Web Audio API (no audio files).
+| File | Pack | Author | License | Source |
+|---|---|---|---|---|
+| `assets/audio/sfx/ui-click.ogg` | Interface Sounds — click_001 | Kenney | CC0 | https://kenney.nl/assets/interface-sounds |
+| `assets/audio/sfx/ui-hover.ogg` | Interface Sounds — tick_001 | Kenney | CC0 | https://kenney.nl/assets/interface-sounds |
+| `assets/audio/sfx/ui-switch.ogg` | Interface Sounds — select_001 | Kenney | CC0 | https://kenney.nl/assets/interface-sounds |
+| `assets/audio/sfx/pass.ogg` | Digital Audio — pepSound1 | Kenney | CC0 | https://kenney.nl/assets/digital-audio |
+| `assets/audio/sfx/perfect.ogg` | Digital Audio — highUp | Kenney | CC0 | https://kenney.nl/assets/digital-audio |
+| `assets/audio/sfx/gem.ogg` | Casino Audio — chips-stack-1 | Kenney | CC0 | https://kenney.nl/assets/casino-audio |
+| `assets/audio/sfx/hit.ogg` | Digital Audio — lowDown | Kenney | CC0 | https://kenney.nl/assets/digital-audio |
+| `assets/audio/sfx/combo.ogg` | Digital Audio — powerUp1 | Kenney | CC0 | https://kenney.nl/assets/digital-audio |
+| `assets/audio/sfx/gameover.ogg` | Digital Audio — highDown | Kenney | CC0 | https://kenney.nl/assets/digital-audio |
+| `assets/audio/sfx/revive.ogg` | Digital Audio — powerUp5 | Kenney | CC0 | https://kenney.nl/assets/digital-audio |
+| `assets/audio/sfx/coins.ogg` | Casino Audio — chips-handle-1 | Kenney | CC0 | https://kenney.nl/assets/casino-audio |
+
+CC0 1.0 Universal — http://creativecommons.org/publicdomain/zero/1.0/

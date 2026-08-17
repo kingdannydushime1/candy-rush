@@ -266,7 +266,7 @@ class GameplayScreen extends BaseScreen {
     this.pauseMenu.querySelector('.btn-quit').addEventListener('click', () => {
       this.game.audio.click();
       this.stopRun();
-      Bridge.platform.sendMessage('level_paused');
+      Bridge.platform.sendMessage('level_paused', this.levelPayload());
       this.game.show('menu');
     });
 
@@ -317,6 +317,38 @@ class GameplayScreen extends BaseScreen {
     return this.images[path];
   }
 
+  /* ----- Playgama lifecycle helpers ----- */
+
+  levelPayload() {
+    return { world: this.level.worldName, level: String(this.level.n) };
+  }
+
+  /* Interstitial policy (Playgama best practice) :
+     - one interstitial after 2 CONSECUTIVE runs with the same outcome
+       (2 wins OR 2 losses), at the natural transition (victory/game over)
+     - never during active gameplay
+     - never right after a rewarded ad (60 s cool-down)
+     - minimum 60 s between interstitials
+     then the streak resets. */
+  maybeInterstitial(outcome) {
+    const cfg = this.game.config.game;
+    const streak = this.game._outcomeStreak || { outcome: null, count: 0 };
+    streak.count = (streak.outcome === outcome) ? streak.count + 1 : 1;
+    streak.outcome = outcome;
+    this.game._outcomeStreak = streak;
+    const minGap = (cfg.interstitialMinGapSec || 60) * 1000;
+    const now = Date.now();
+    const sinceRewarded = now - (Bridge.lastRewardedAt || 0);
+    const sinceLast = now - (this.game._lastInterstitialAt || 0);
+    if (streak.count >= (cfg.interstitialStreak || 2) &&
+        sinceRewarded >= minGap && sinceLast >= minGap) {
+      streak.count = 0;
+      this.game._lastInterstitialAt = now;
+      const placement = outcome === 'win' ? 'level_complete' : 'game_over';
+      setTimeout(() => Bridge.advertisement.showInterstitial(placement), 500);
+    }
+  }
+
   /* ----- lifecycle ----- */
 
   enter(previous, options = {}) {
@@ -337,7 +369,7 @@ class GameplayScreen extends BaseScreen {
     window.addEventListener('resize', this.onResize);
     this.lastTime = 0;
     this.frameId = requestAnimationFrame(this.loop.bind(this));
-    Bridge.platform.sendMessage('level_started');
+    Bridge.platform.sendMessage('level_started', this.levelPayload());
   }
 
   exit(next) {
@@ -377,15 +409,15 @@ class GameplayScreen extends BaseScreen {
     if (this.state !== 'running' && this.state !== 'ready') return;
     this.paused = !this.paused;
     this.pauseMenu.classList.toggle('hidden', !this.paused);
-    this.game.audio.tone({ freq: 500, freqEnd: 700, type: 'triangle', duration: 0.08, gain: 0.15 });
-    Bridge.platform.sendMessage(this.paused ? 'level_paused' : 'level_resumed');
+    this.game.audio.click();
+    Bridge.platform.sendMessage(this.paused ? 'level_paused' : 'level_resumed', this.levelPayload());
   }
 
   forcePause() {
     if ((this.state === 'running' || this.state === 'ready') && !this.paused) {
       this.paused = true;
       this.pauseMenu.classList.remove('hidden');
-      Bridge.platform.sendMessage('level_paused');
+      Bridge.platform.sendMessage('level_paused', this.levelPayload());
     }
   }
 
@@ -757,10 +789,8 @@ class GameplayScreen extends BaseScreen {
     progress.unlocked = Math.max(progress.unlocked || 1, Math.min(cfg.totalLevels, this.level.n + 1));
     this.game.storage.set('progress', progress);
     this.game.storage.set('coins', this.game.storage.get('coins', 0) + this.coinsEarned);
-    this.game._completions = (this.game._completions || 0) + 1;
-    if (this.game._completions % cfg.game.interstitialsEveryLevels === 0) {
-      setTimeout(() => Bridge.advertisement.showInterstitial('level_complete'), 600);
-    }
+    Bridge.platform.sendMessage('level_completed', this.levelPayload());
+    this.maybeInterstitial('win');
     this.game.show('victory', {
       level: this.level.n,
       worldName: this.level.worldName,
@@ -783,7 +813,7 @@ class GameplayScreen extends BaseScreen {
     this.burst(this.ballX, this.pf.ballY, '#ffffff', 26);
     this.stopFever();
     this.game.audio.gameOver();
-    Bridge.platform.sendMessage('level_failed');
+    Bridge.platform.sendMessage('level_failed', this.levelPayload());
   }
 
   finalize() {
@@ -795,6 +825,7 @@ class GameplayScreen extends BaseScreen {
     this.game.storage.set('best', best);
     if (isNewBest) Bridge.platform.sendMessage('player_got_achievement');
     if (this.score > 0) Bridge.leaderboards.setScore(this.game.config.leaderboardId, this.score);
+    this.maybeInterstitial('loss');
     this.game.show('gameover', {
       score: this.score,
       best,
@@ -997,7 +1028,7 @@ class GameplayScreen extends BaseScreen {
 
   updateScoreDisplay() {
     const value = this.hud.querySelector('.hud-score-value');
-    if (value) value.textContent = this.score.toLocaleString();
+    if (value) value.textContent = this.score.toLocaleString('en-US');
     const tag = this.hud.querySelector('.level-tag-num');
     if (tag) tag.textContent = this.level.n;
   }

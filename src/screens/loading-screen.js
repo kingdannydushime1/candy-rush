@@ -16,6 +16,8 @@ class LoadingScreen extends BaseScreen {
   build() {
     const config = this.game.config;
 
+    Bridge.platform.sendMessage('in_game_loading_started');
+
     this.el = document.createElement('div');
     this.el.className = 'screen loading-screen';
     this.el.innerHTML = `
@@ -58,6 +60,7 @@ class LoadingScreen extends BaseScreen {
           document.fonts.load('16px "Kenney Mini Square"');
         }
       } catch (e) { /* noop */ }
+      Bridge.platform.sendMessage('in_game_loading_stopped');
       Bridge.platform.sendMessage('game_ready');
       this.game.show(this.game.config.loading.loadTarget || 'menu');
     };

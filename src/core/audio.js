@@ -1,14 +1,16 @@
 /* ============================================================
-   AUDIO ENGINE — all sounds synthesized with WebAudio
-   (no files to download = instant loading). Respects the
-   platform audio state (Playgama requirement).
+   AUDIO ENGINE — real CC0 files (Kenney.nl) for every sound.
+   ------------------------------------------------------------
+   Music : one CC0 loop per world + menu (assets/music/*.ogg).
+   SFX   : real files (assets/audio/sfx/*.ogg) — nothing is
+   synthesized by code. The combo pitch rise is done with
+   playbackRate on the same file. Respects the platform audio
+   state (Playgama requirement).
    ============================================================ */
 
 class AudioEngine {
   constructor(game) {
     this.game = game;
-    this.ctx = null;
-    this.master = null;
     this.settings = { sound: true };
     this.platformMuted = false;
     this.musicEl = null;
@@ -17,6 +19,37 @@ class AudioEngine {
     this.musicWanted = false;
     const saved = game.storage.get('settings', null);
     if (saved) Object.assign(this.settings, saved);
+
+    // SFX pool : one group of Audio elements per file, so rapid
+    // consecutive sounds (combo passes) can overlap cleanly.
+    this.sfxPool = {};
+    const poolSize = 3;
+    const defs = {
+      click:    { src: 'assets/audio/sfx/ui-click.ogg',   vol: 0.5 },
+      hover:    { src: 'assets/audio/sfx/ui-hover.ogg',   vol: 0.18 },
+      switch:   { src: 'assets/audio/sfx/ui-switch.ogg',  vol: 0.35 },
+      pass:     { src: 'assets/audio/sfx/pass.ogg',       vol: 0.4 },
+      perfect:  { src: 'assets/audio/sfx/perfect.ogg',    vol: 0.45 },
+      gem:      { src: 'assets/audio/sfx/gem.ogg',        vol: 0.4 },
+      hit:      { src: 'assets/audio/sfx/hit.ogg',        vol: 0.45 },
+      combo:    { src: 'assets/audio/sfx/combo.ogg',      vol: 0.45 },
+      gameover: { src: 'assets/audio/sfx/gameover.ogg',   vol: 0.5 },
+      revive:   { src: 'assets/audio/sfx/revive.ogg',     vol: 0.45 },
+      coins:    { src: 'assets/audio/sfx/coins.ogg',      vol: 0.4 }
+    };
+    this.sfxDefs = defs;
+    Object.keys(defs).forEach((name) => {
+      this.sfxPool[name] = [];
+      for (let i = 0; i < poolSize; i += 1) {
+        const el = new Audio();
+        el.src = defs[name].src;
+        el.volume = defs[name].vol;
+        el.preload = 'auto';
+        el.dataset.used = '0';
+        this.sfxPool[name].push(el);
+      }
+    });
+
     window.addEventListener('pointerdown', () => this.unlock(), { once: true });
     window.addEventListener('keydown', () => this.unlock(), { once: true });
   }
@@ -92,22 +125,7 @@ class AudioEngine {
     }
   }
 
-  ensure() {
-    if (this.ctx) return true;
-    try {
-      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-      this.master = this.ctx.createGain();
-      this.master.gain.value = 0.8;
-      this.master.connect(this.ctx.destination);
-      return true;
-    } catch (error) {
-      return false;
-    }
-  }
-
   unlock() {
-    if (!this.ensure()) return;
-    if (this.ctx.state === 'suspended') this.ctx.resume();
     // first user gesture : start the background music if one is queued
     this._resumeMusicEl();
   }
@@ -115,9 +133,6 @@ class AudioEngine {
   /* Called by the platform when audio is disabled/enabled */
   setPlatformEnabled(enabled) {
     this.platformMuted = !enabled;
-    if (this.ctx && this.master) {
-      this.master.gain.linearRampToValueAtTime(enabled ? 0.8 : 0.0001, this.ctx.currentTime + 0.05);
-    }
     if (enabled) this._resumeMusicEl();
     else this._pauseMusicEl();
   }
@@ -134,76 +149,74 @@ class AudioEngine {
     return this.settings.sound;
   }
 
-  tone({ freq = 440, freqEnd = null, duration = 0.08, type = 'sine', gain = 0.3, when = 0 }) {
+  /* ----- SFX (real files, pooled for overlap) ----- */
+
+  sfx(name, { rate = 1 } = {}) {
     if (!this.settings.sound || this.platformMuted) return;
-    if (!this.ensure()) return;
-    const start = this.ctx.currentTime + when;
-    const oscillator = this.ctx.createOscillator();
-    const envelope = this.ctx.createGain();
-    oscillator.type = type;
-    oscillator.frequency.setValueAtTime(freq, start);
-    if (freqEnd) oscillator.frequency.exponentialRampToValueAtTime(freqEnd, start + duration);
-    envelope.gain.setValueAtTime(0.0001, start);
-    envelope.gain.exponentialRampToValueAtTime(gain, start + 0.012);
-    envelope.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-    oscillator.connect(envelope);
-    envelope.connect(this.master);
-    oscillator.start(start);
-    oscillator.stop(start + duration + 0.02);
+    const pool = this.sfxPool[name];
+    if (!pool || pool.length === 0) return;
+    // pick the least recently used element in the pool
+    let el = pool[0];
+    for (let i = 1; i < pool.length; i += 1) {
+      if (pool[i].dataset.used === '0') { el = pool[i]; break; }
+      if (pool[i].dataset.used < el.dataset.used) el = pool[i];
+    }
+    el.dataset.used = String(Date.now());
+    try {
+      el.playbackRate = rate;
+      el.currentTime = 0;
+      el.play().catch(() => { /* autoplay blocked until gesture */ });
+    } catch (e) { /* noop */ }
   }
 
   /* ----- UI ----- */
 
   click() {
-    this.tone({ freq: 660, freqEnd: 880, type: 'triangle', duration: 0.09, gain: 0.22 });
+    this.sfx('click');
   }
 
   hover() {
-    this.tone({ freq: 460, freqEnd: 540, type: 'sine', duration: 0.05, gain: 0.05 });
+    this.sfx('hover');
   }
 
   /* ----- gameplay ----- */
 
   switchColor() {
-    this.tone({ freq: 520, freqEnd: 700, type: 'triangle', duration: 0.06, gain: 0.18 });
+    this.sfx('switch');
   }
 
   pass(combo) {
-    const base = 523; // C5
-    const step = combo % 12;
-    const freq = base * Math.pow(2, step / 12);
-    this.tone({ freq, freqEnd: freq * 1.06, type: 'triangle', duration: 0.12, gain: 0.22 });
+    // pitch rises with the combo (same file, faster playback)
+    const rate = 1 + Math.min(1.2, (combo % 12) * 0.05);
+    this.sfx('pass', { rate });
   }
 
   perfect() {
-    [880, 1174, 1568].forEach((f, i) => {
-      this.tone({ freq: f, type: 'sine', duration: 0.14, gain: 0.16, when: i * 0.06 });
-    });
+    this.sfx('perfect');
   }
 
   gem() {
-    this.tone({ freq: 988, freqEnd: 1319, type: 'sine', duration: 0.1, gain: 0.15 });
+    this.sfx('gem');
   }
 
   hit() {
-    this.tone({ freq: 220, freqEnd: 90, type: 'sawtooth', duration: 0.25, gain: 0.25 });
+    this.sfx('hit');
   }
 
   comboMilestone(level) {
-    [523, 659, 784, 1047].forEach((f, i) => {
-      this.tone({ freq: f * (1 + level * 0.03), type: 'triangle', duration: 0.11, gain: 0.15, when: i * 0.05 });
-    });
+    const rate = 1 + Math.min(0.6, level * 0.06);
+    this.sfx('combo', { rate });
   }
 
   gameOver() {
-    [660, 523, 392, 262].forEach((f, i) => {
-      this.tone({ freq: f, type: 'triangle', duration: 0.22, gain: 0.18, when: i * 0.12 });
-    });
+    this.sfx('gameover');
   }
 
   revive() {
-    [523, 659, 784, 1047, 1319].forEach((f, i) => {
-      this.tone({ freq: f, type: 'sine', duration: 0.16, gain: 0.16, when: i * 0.07 });
-    });
+    this.sfx('revive');
+  }
+
+  coins() {
+    this.sfx('coins');
   }
 }

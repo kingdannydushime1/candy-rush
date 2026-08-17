@@ -13,6 +13,9 @@
 
 const Bridge = {
   initialized: false,
+  // timestamp (ms) of the last successfully rewarded ad, used to
+  // guarantee an interstitial is never shown right after a rewarded
+  lastRewardedAt: 0,
 
   /* ----- lifecycle ----- */
 
@@ -175,6 +178,7 @@ const Bridge = {
             bridge.advertisement.off(bridge.EVENT_NAME.REWARDED_STATE_CHANGED, onChange);
           } catch (e) { /* noop */ }
           clearTimeout(timer);
+          if (ok) Bridge.lastRewardedAt = Date.now();
           resolve(ok);
         };
         const onChange = (state) => {

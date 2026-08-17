@@ -19,7 +19,7 @@ class MenuScreen extends BaseScreen {
         <h1 class="game-title">${config.title}</h1>
         <div class="menu-best">
           <img src="assets/ui/s1.png" alt="" draggable="false">
-          <span>${LANG.t('menu.best')} ${best.toLocaleString()}</span>
+          <span>${LANG.t('menu.best')} ${best.toLocaleString('en-US')}</span>
         </div>
         <div class="menu-buttons">
           ${this.playButton()}

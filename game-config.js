@@ -150,7 +150,8 @@ const GAME_CONFIG = {
     feverCombo: 5,           // combo that triggers FEVER
     feverPointsMult: 2,
     feverMusicRate: 1.18,
-    interstitialsEveryLevels: 3, // interstitial every N completed levels
+    interstitialStreak: 2,      // interstitial after 2 consecutive runs with the same outcome (2 wins OR 2 losses)
+    interstitialMinGapSec: 60,   // never closer than 60 s, never right after a rewarded ad
     baseSpeed: 240,
     maxSpeed: 560,
     sweetsPerGap: [2, 4]     // sweets spawned in each gate gap

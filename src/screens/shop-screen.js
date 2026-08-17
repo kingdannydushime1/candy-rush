@@ -78,7 +78,7 @@ class ShopScreen extends BaseScreen {
       row.innerHTML = `
         <span class="shop-item-icon">${this.itemIcon(item)}</span>
         <span class="shop-item-name">${LANG.t(item.nameKey)}</span>
-        <span class="shop-item-price"><img src="assets/ui/c.png" alt="" draggable="false">${item.price.toLocaleString()}</span>
+        <span class="shop-item-price"><img src="assets/ui/c.png" alt="" draggable="false">${item.price.toLocaleString('en-US')}</span>
       `;
       const buyButton = new Button({
         label: owned ? LANG.t('shop.owned') : LANG.t('shop.buy'),
@@ -236,6 +236,6 @@ class ShopScreen extends BaseScreen {
 
   refreshCoins() {
     const value = this.el.querySelector('.shop-coins span');
-    if (value) value.textContent = this.getCoins().toLocaleString();
+    if (value) value.textContent = this.getCoins().toLocaleString('en-US');
   }
 }
