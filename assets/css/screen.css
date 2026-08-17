@@ -551,14 +551,14 @@ body {
   pointer-events: auto;
 }
 
-/* move arrows : bigger, spread apart */
+/* move arrows : bigger, spread apart (more space between ◀ and ▶) */
 .ctl-row-move .ctl-arrow {
   width: clamp(58px, 17vw, 92px);
   height: clamp(58px, 17vw, 92px);
 }
 
-.ctl-row-move {
-  gap: clamp(30px, 12vw, 70px);
+.game-controls .ctl-row-move {
+  gap: clamp(44px, 17vw, 110px);
 }
 
 /* color buttons : medium, one per color */
@@ -1024,6 +1024,32 @@ body {
 /* ============================================================
    VICTORY screen
    ============================================================ */
+
+/* Celebration confetti : CC0 spritesheet pieces falling from the top.
+   Behind the panel (z-index 1 vs panel 1 later in DOM), above the bg. */
+.confetti-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -70px;
+  opacity: 0;
+  will-change: transform;
+  animation-name: confetti-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes confetti-fall {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0; }
+  8% { opacity: 0.95; }
+  100% { transform: translate3d(var(--sway, 30px), 118vh, 0) rotate(var(--spin, 540deg)); opacity: 0.85; }
+}
 
 .victory-screen .panel {
   width: min(88vw, 440px);
@@ -1502,8 +1528,8 @@ body {
     height: clamp(48px, 11vh, 64px);
   }
 
-  .ctl-row-move {
-    gap: clamp(20px, 8vh, 44px);
+  .game-controls .ctl-row-move {
+    gap: clamp(28px, 11vh, 60px);
   }
 
   .game-controls {

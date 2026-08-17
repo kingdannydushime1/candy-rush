@@ -24,6 +24,7 @@ class VictoryScreen extends BaseScreen {
     this.el.className = 'screen victory-screen';
     this.el.innerHTML = '';
     this.el.appendChild(BG.build('menu'));
+    this.el.appendChild(this.confettiLayer());
 
     const panel = new Panel({ image: 'assets/ui/f.png' });
     const children = [this.titleEl()];
@@ -42,6 +43,31 @@ class VictoryScreen extends BaseScreen {
     this.onKeyDown((event) => {
       if (event.code === 'Enter' || event.code === 'Space') this.nextLevel();
     });
+  }
+
+  /* Celebration confetti : CC0 spritesheet pieces (assets/fx/confetti/)
+     falling from the top, looped with a negative delay so the screen is
+     already full of confetti the moment it appears. */
+  confettiLayer() {
+    const layer = document.createElement('div');
+    layer.className = 'confetti-layer';
+    layer.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < 44; i += 1) {
+      const img = document.createElement('img');
+      img.className = 'confetti-piece';
+      const n = String(1 + Math.floor(Math.random() * 12)).padStart(2, '0');
+      img.src = `assets/fx/confetti/confetti-${n}.png`;
+      img.alt = '';
+      img.draggable = false;
+      img.style.left = `${Math.random() * 100}%`;
+      img.style.width = `${14 + Math.random() * 24}px`;
+      img.style.animationDelay = `${-(Math.random() * 6).toFixed(2)}s`;
+      img.style.animationDuration = `${(2.4 + Math.random() * 2.6).toFixed(2)}s`;
+      img.style.setProperty('--sway', `${20 + Math.random() * 60}px`);
+      img.style.setProperty('--spin', `${Math.round((Math.random() - 0.5) * 1080)}deg`);
+      layer.appendChild(img);
+    }
+    return layer;
   }
 
   titleEl() {
