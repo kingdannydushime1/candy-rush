@@ -45,9 +45,10 @@ class VictoryScreen extends BaseScreen {
     });
   }
 
-  /* Celebration confetti : CC0 spritesheet pieces (assets/fx/confetti/)
-     falling from the top, looped with a negative delay so the screen is
-     already full of confetti the moment it appears. */
+  /* Celebration confetti : Kenney Particle Pack sprites (stars, diamonds,
+     ribbons, tinted to candy colors — assets/fx/confetti/) falling from the
+     top, looped with a negative delay so the screen is already full of
+     confetti the moment it appears. */
   confettiLayer() {
     const layer = document.createElement('div');
     layer.className = 'confetti-layer';
@@ -60,7 +61,7 @@ class VictoryScreen extends BaseScreen {
       img.alt = '';
       img.draggable = false;
       img.style.left = `${Math.random() * 100}%`;
-      img.style.width = `${14 + Math.random() * 24}px`;
+      img.style.width = `${18 + Math.random() * 30}px`;
       img.style.animationDelay = `${-(Math.random() * 6).toFixed(2)}s`;
       img.style.animationDuration = `${(2.4 + Math.random() * 2.6).toFixed(2)}s`;
       img.style.setProperty('--sway', `${20 + Math.random() * 60}px`);
